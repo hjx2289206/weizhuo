@@ -1,0 +1,34 @@
+// Shared vector artwork for UI controls and exported result cards.
+export type IconName = 'settings' | 'sun' | 'book' | 'history' | 'trophy' | 'download' | 'close' | 'left' | 'right' | 'play' | 'home' | 'fullscreen' | 'restore' | 'rotate' | 'chat' | 'crown' | 'sort' | 'counter' | 'share' | 'users' | 'check' | 'swap' | 'trash' | 'phone' | 'table' | 'bolt' | 'volume' | 'muted' | 'user' | 'cards' | 'clock' | 'plus' | 'minus' | 'copy'
+export const ICON_PATHS: Record<IconName, string[]> = {
+  // Eight identical teeth, rotated around the same centre as the circular hub.
+  settings: ['M9.245 5.348L10.38 4.985L10.514 2.617L13.486 2.617L13.62 4.985L14.755 5.348L15.815 5.894L17.584 4.314L19.686 6.416L18.106 8.185L18.652 9.245L19.015 10.38L21.383 10.514L21.383 13.486L19.015 13.62L18.652 14.755L18.106 15.815L19.686 17.584L17.584 19.686L15.815 18.106L14.755 18.652L13.62 19.015L13.486 21.383L10.514 21.383L10.38 19.015L9.245 18.652L8.185 18.106L6.416 19.686L4.314 17.584L5.894 15.815L5.348 14.755L4.985 13.62L2.617 13.486L2.617 10.514L4.985 10.38L5.348 9.245L5.894 8.185L4.314 6.416L6.416 4.314L8.185 5.894Z', 'M15.2 12a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0Z'],
+  sun: ['M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z', 'M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5'],
+  book: ['M12 6C10 4.5 8 4 3 4v14c5 0 7 .5 9 2 2-1.5 4-2 9-2V4c-5 0-7 .5-9 2ZM12 6v14'],
+  history: ['M3 10a9 9 0 1 1 2 8M3 4v6h6', 'M12 7v5l3 2'],
+  trophy: ['M7 3h10v6a5 5 0 0 1-10 0V3Zm0 2H3v3a4 4 0 0 0 4 4m10-7h4v3a4 4 0 0 1-4 4M12 14v6m-5 1h10'],
+  download: ['M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5'],
+  close: ['m6 6 12 12M18 6 6 18'], left: ['m15.5 5-7 7 7 7'], right: ['m8.5 5 7 7-7 7'],
+  // A triangle is optically centred by its visual mass, rather than its bounding box.
+  play: ['m8 4 12 8-12 8V4Z'], home: ['m3 11 9-8 9 8M5 10v11h5v-7h4v7h5V10'],
+  fullscreen: ['M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6'],
+  restore: ['M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6'],
+  rotate: ['M5 8.5a9 9 0 0 1 15-3M20 2.5v3h-3', 'm9 8.5 8 8-5 5-8-8 5-5Z'],
+  chat: ['M21 11a8 8 0 0 1-8 8H8l-5 2V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v4Z', 'M7 8h10M7 12h7'],
+  crown: ['M3 7l5 4 4-7 4 7 5-4-2 13H5L3 7ZM5 17h14'],
+  sort: ['M7 3v18m-4-4 4 4 4-4M17 21V3m-4 4 4-4 4 4'],
+  counter: ['M5 3h14v18H5V3Zm3 4h8M8 11h1m6 0h1m-8 4h1m6 0h1m-8 3h1m6 0h1'],
+  share: ['M12 16V3m-4 4 4-4 4 4M5 11v10h14V11'],
+  users: ['M9 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 21v-3a6 6 0 0 1 12 0v3M17 3a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v3'],
+  check: ['m5 13 4 4L19 7'], swap: ['M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4'],
+  trash: ['M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7'],
+  phone: ['M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM11 18h2'],
+  table: ['M3 4h18v12H3V4ZM12 16v4M7 20h10'], bolt: ['m13 2-9 12h7l-1 8 10-13h-7l1-7Z'],
+  volume: ['M11 4.5 6.5 8.5H3v7h3.5l4.5 4V4.5Z', 'M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12'],
+  muted: ['M11 4.5 6.5 8.5H3v7h3.5l4.5 4V4.5Z', 'm16 9.5 5 5M21 9.5l-5 5'],
+  user: ['M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2'],
+  cards: ['M4 6h11v15H4V6ZM9 3h11v15h-2', 'm9.5 10 2.5 3.5-2.5 3.5L7 13.5l2.5-3.5Z'],
+  clock: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2'],
+  plus: ['M12 5v14M5 12h14'], minus: ['M5 12h14'],
+  copy: ['M9 9h12v12H9V9ZM15 6V3H3v12h3'],
+}

@@ -1,0 +1,7 @@
+# DouZero runtime dependencies (CPU inference only), installed into .douzero/venv.
+# Pinned for reproducibility; see scripts/douzero-setup.sh.
+torch==2.14.1
+numpy==2.5.4
+# DouZero's official `douzero.dmc` package imports its training module (and thus GitPython)
+# at import time, so the official model loader needs it even for pure inference.
+GitPython==3.1.45

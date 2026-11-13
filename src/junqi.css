@@ -1,0 +1,52 @@
+.junqi-screen { min-height: 100dvh; width: min(1160px, 100%); margin: auto; padding: 16px 28px 24px; color: #244b3c; }
+.junqi-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 14px; border-bottom: 1px solid #d0d5c3; }
+.junqi-brand { display: flex; align-items: center; gap: 12px; font: 26px 'Songti SC', serif; letter-spacing: .1em; }
+.junqi-brand > span { display: flex; align-items: baseline; gap: 12px; }.junqi-brand small { font: 12px sans-serif; color: #7b866c; letter-spacing: .12em; }
+.junqi-header-tools { display: flex; align-items: center; gap: 14px; }.junqi-room { font-size: 13px; }.junqi-status-dot { color: #96644c; font-size: 11px; }.junqi-status-dot.online { color: #5d7954; }
+.junqi-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .8fr); align-items: start; gap: 40px; padding-top: 18px; }
+.junqi-board-column { min-width: 0; }.junqi-board-heading { display: flex; justify-content: space-between; gap: 12px; margin: 0 auto 9px; width: min(100%, 500px); font-size: 12px; color: #69795e; }
+.junqi-board-frame { width: 100%; height: min(760px, calc(100dvh - 140px)); min-height: 420px; margin: auto; }
+.junqi-panel { min-width: 0; padding: 8px 0 20px; }.junqi-intro .eyebrow { color: #8d835d; font-size: 10px; letter-spacing: .2em; margin: 0 0 12px; }.junqi-intro h1 { font: 30px/1.4 'Songti SC', serif; margin: 0 0 12px; letter-spacing: .05em; }
+.junqi-message { font-size: 13px; line-height: 1.8; min-height: 46px; color: #5e7255; margin-bottom: 18px; }
+.junqi-roster { display: grid; gap: 9px; margin-bottom: 20px; }.junqi-seat { display: flex; align-items: center; gap: 12px; min-height: 70px; padding: 12px; background: #faf8ef; border: 1px solid #d7dbc9; border-radius: 12px; }.junqi-seat.is-turn { border-color: #8f9e72; box-shadow: inset 3px 0 #71875b; }.junqi-seat > div { flex: 1; min-width: 0; }.junqi-seat strong { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; font-weight: 500; }.junqi-seat strong small { font-size: 10px; color: #73816a; }.junqi-seat p { font-size: 11px; color: #748069; margin: 5px 0 0; }
+.junqi-side { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 9px; font: 18px 'Songti SC', serif; }.junqi-side.red { background: #f0e0d0; color: #9b4237; }.junqi-side.blue { background: #e0e9ed; color: #356083; }
+.junqi-small-button { flex: none; min-height: 34px; padding: 5px 10px; border: 1px solid #bfcbb0; border-radius: 7px; background: transparent; color: #385c40; font: inherit; font-size: 11px; cursor: pointer; }
+.junqi-actions { display: flex; flex-wrap: wrap; gap: 9px; }.junqi-actions > .button { flex: 1; min-height: 44px; font-size: 13px; padding: 10px; white-space: nowrap; }.junqi-help { flex: 1 1 100%; color: #758068; font-size: 12px; line-height: 1.8; margin: 5px 0 0; }
+.junqi-manage, .junqi-utilities { display: flex; gap: 18px; padding-top: 14px; }.junqi-utilities { border-top: 1px solid #d0d5c3; margin-top: 18px; }
+.junqi-text-button { min-height: 34px; padding: 5px 0; border: 0; background: transparent; color: #4c6d49; font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }.junqi-text-button:disabled, .junqi-small-button:disabled { opacity: .45; cursor: default; }
+.junqi-confirm { padding: 12px; margin-top: 10px; border: 1px solid #d2c6a8; border-radius: 9px; }.junqi-confirm p { font-size: 13px; }.junqi-confirm .button { margin: 8px 8px 0 0; font-size: 12px; }
+.junqi-flag-note { color: #926d3c; font-size: 12px; line-height: 1.7; margin-top: 12px; }.junqi-rules, .junqi-invites { padding: 14px; background: #eeeddf; border-radius: 10px; margin: 10px 0; }.junqi-rules p, .junqi-invites p { font-size: 12px; line-height: 1.8; margin-bottom: 8px; }.junqi-rules p:last-child { margin: 0; }.junqi-invites > div { margin-top: 10px; }.junqi-invites a { display: block; overflow-wrap: anywhere; color: #486849; font-size: 11px; margin: 7px 0; }
+.junqi-history { margin-top: 20px; }.junqi-history h2 { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; padding-bottom: 10px; border-bottom: 1px solid #d9dccb; }.junqi-history h2 span { color: #7e876d; font-size: 11px; }.junqi-history ol { padding: 0; list-style: none; margin-top: 10px; }.junqi-history li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; color: #5b7153; }.junqi-history li small { font-size: 11px; color: #8b886e; }
+.junqi-panel > .host-tools { margin-top: 18px; }.junqi-panel > .seat-request-panel { margin-top: 14px; padding: 14px; }
+@media (max-width: 760px) { .junqi-screen { padding: 12px 12px 24px; }.junqi-header { gap: 8px; padding-bottom: 10px; }.junqi-brand { gap: 7px; font-size: 23px; }.junqi-brand small, .junqi-status-dot { display: none; }.junqi-header-tools { gap: 9px; }.junqi-room { font-size: 11px; }.junqi-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 12px; }.junqi-board-frame { height: auto; aspect-ratio: 500 / 760; min-height: 0; max-height: none; }.junqi-panel { padding: 0 6px; }.junqi-intro .eyebrow { display: none; }.junqi-intro h1 { font-size: 24px; margin-bottom: 6px; }.junqi-message { min-height: 0; margin-bottom: 12px; }.junqi-roster { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin-bottom: 12px; }.junqi-seat { flex-wrap: wrap; padding: 9px; gap: 7px; }.junqi-seat p { line-height: 1.6; }.junqi-side { width: 27px; height: 30px; font-size: 15px; }.junqi-seat strong { font-size: 12px; } }
+
+.junqi-result-moves { max-height: 45dvh; overflow: auto; padding-left: 24px; font-size: 13px; line-height: 1.9; }
+/* Junqi keeps its portrait board size; its own viewport scrolls because the lobby locks body scrolling. */
+.junqi-screen { width: min(560px, 100%); height: 100dvh; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
+.junqi-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 12px; }
+.junqi-board-frame { width: 100%; height: auto; aspect-ratio: 500 / 760; min-height: 0; max-height: none; }
+.junqi-board-heading { width: 100%; }
+.junqi-panel { padding: 0 6px 20px; }
+.junqi-intro .eyebrow { display: none; }
+.junqi-intro h1 { font-size: 24px; margin-bottom: 6px; }
+.junqi-message { min-height: 0; margin-bottom: 12px; }
+.junqi-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-bottom: 12px; }
+.junqi-seat { flex-wrap: wrap; padding: 9px; gap: 7px; }
+.junqi-seat p { line-height: 1.6; }
+.junqi-brand small, .junqi-status-dot { display: none; }
+.junqi-brand { gap: 7px; font-size: 23px; }
+.junqi-header-tools { gap: 9px; }
+.junqi-room { font-size: 11px; }
+.junqi-mode-picker { padding-top: 14px; }
+.junqi-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.junqi-mode-tabs button { display: grid; gap: 4px; min-height: 62px; padding: 10px; border: 1px solid #c5cdb7; border-radius: 11px; color: #596c50; background: #f7f5e9; font: 16px 'Songti SC', serif; cursor: pointer; }
+.junqi-mode-tabs button[aria-pressed=true] { color: #2e573a; background: #e7ecd9; border-color: #7c9365; box-shadow: inset 0 0 0 1px #8d9e77; }
+.junqi-mode-tabs small { font: 11px sans-serif; opacity: .8; }.junqi-mode-tabs button:disabled { cursor: default; }
+.junqi-mode-picker > p, .junqi-game-kind { font-size: 11px; line-height: 1.7; color: #6d7c60; margin: 9px 0 0; }
+.junqi-board-frame.is-four { aspect-ratio: 1; }.junqi-board-frame.is-four.is-army { aspect-ratio: 264 / 302; }
+.junqi-board-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding-top: 9px; }.junqi-board-controls small { color: #7d876c; font-size: 10px; }
+.junqi-board-controls button[aria-pressed=true] { background: #e1e8d4; border-color: #7d9468; }
+.junqi-selection-note { font-size: 12px; color: #6a744d; padding: 8px 0 0; }
+.junqi-last-move { margin: 0 0 8px; padding: 7px 9px; border-left: 3px solid #8c7946; background: #ebe7d5; color: #415e44; font-size: 12px; line-height: 1.6; }
+.junqi-side.green { background: #e3ebd7; color: #426442; }.junqi-side.purple { background: #eee2ec; color: #795773; }
+.junqi-seat.is-out { border-style: dashed; opacity: .65; }

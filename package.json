@@ -1,0 +1,33 @@
+{
+  "name": "tabletop-collection",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "build": "vue-tsc --noEmit && vite build",
+    "start": "tsx server/index.ts --production",
+    "test": "tsx --test tests/*.test.ts",
+    "setup:board-ai": "tsx scripts/board-ai-setup.ts",
+    "test:board-ai": "tsx scripts/board-ai-smoke.ts",
+    "test:ai": ".ai/venv/bin/python tests/ai_cpu_test.py && tsx scripts/ai-smoke.ts",
+    "test:junqi:ws": "tsx scripts/junqi-smoke.ts"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.13",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vue-tsc": "^2.2.0"
+  },
+  "description": "桌游合集 · 局域网斗地主、掼蛋、中国象棋、国际象棋、围棋、五子棋与双人／四国暗棋"
+}

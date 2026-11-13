@@ -1,0 +1,5 @@
+# Build/validation only. Never installed in the inference environment.
+-r requirements-ai.txt
+torch==2.14.1
+onnx==1.23.2
+onnxscript==0.7.2

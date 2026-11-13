@@ -1,0 +1,114 @@
+/* Home shows categories first; each category keeps its own one-screen game list. */
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+.lobby-viewport { width: 100%; height: 100dvh; overflow: hidden; background: #f4f0e5; }
+.collection-home { display: grid; grid-template-rows: auto auto minmax(0,1fr) auto; gap: 20px; width: min(1440px,100%); height: 100%; min-height: 0; padding: max(16px,env(safe-area-inset-top)) max(28px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(28px,env(safe-area-inset-left)); }
+.collection-header { min-height: 48px; gap: 18px; flex-wrap: nowrap; padding-bottom: 12px; }
+.collection-header .brand { font-size: 22px; flex: none; }
+.lobby-header-motto { margin-left: auto; color: #8b977d; font: 15px 'Songti SC',serif; letter-spacing: .08em; }
+.lobby-header-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.lobby-header-actions > .button { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 7px 13px; font-size: 12px; }
+.lobby-header-actions .app-icon { width: 16px; height: 16px; }
+.lobby-toolbar { display: flex; gap: 20px; align-items: center; min-width: 0; }
+.lobby-location { display: flex; align-items: center; gap: 22px; margin-right: auto; min-width: 0; }
+.lobby-intro h1 { margin: 0; font: 30px 'Songti SC',serif; line-height: 1.3; letter-spacing: .06em; outline: none; }
+.lobby-intro h1 small { margin-left: 12px; font: 11px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif; letter-spacing: 0; color: #8b977d; white-space: nowrap; }
+.lobby-intro p { margin: 6px 0 0; font-size: 12px; color: #8b977d; }
+.lobby-toolbar--category .lobby-intro h1 { font-size: 25px; }
+.category-back { display: flex; align-items: center; gap: 5px; padding: 9px 12px 9px 7px; min-height: 38px; border: 1px solid #d1d8c3; border-radius: 9px; background: #faf8ef; color: #59724c; font: inherit; font-size: 12px; white-space: nowrap; }
+.category-back .app-icon { width: 15px; height: 15px; }
+.collection-settings { display: flex; align-items: center; gap: 18px; order: initial; padding: 0; border: 0; background: transparent; }
+.collection-settings .field, .practice-tier { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; color: #718463; white-space: nowrap; }
+.collection-settings input, .practice-tier select { min-height: 36px; width: 160px; padding: 7px 10px; font-size: 16px; border: 1px solid #cbd4bb; border-radius: 8px; background: #faf8ef; color: #31533d; }
+.practice-tier select { width: 80px; font-size: 13px; }
+.lobby-resume { display: flex; align-items: center; gap: 6px; padding: 8px 10px; min-height: 36px; border: 1px solid #cdd5bd; border-radius: 9px; background: #e9eddc; color: #4e6c45; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.lobby-resume small { margin-left: 5px; color: #879675; font-size: 10px; }
+.lobby-resume .app-icon { width: 16px; height: 16px; }
+.category-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; min-height: 0; }
+.category-card { display: grid; grid-template-rows: auto minmax(0,1fr) auto; gap: 12px; min-width: 0; min-height: 0; padding: 30px 34px 25px; border: 1px solid #bfcbb2; border-radius: 22px; background: radial-gradient(ellipse at 80% 30%,#d5dfc4,transparent 65%),#e9eddf; color: #31533d; text-align: left; transition: border-color .2s,box-shadow .2s; }
+.category-card[data-category="cards"] { border-color: #d5c7a5; background: radial-gradient(ellipse at 80% 30%,#ebe0bb,transparent 65%),#f1ebd9; }
+.category-card:not(:disabled):hover { border-color: #8a9e72; box-shadow: 0 6px 24px #31533d0c; }
+.category-card:not(:disabled):active { border-color: #59764d; }
+.category-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.category-card-title { font: 42px 'Songti SC',serif; line-height: 1.2; letter-spacing: .16em; }
+.category-card-note { font-size: 12px; color: #7f8c6c; }
+.category-cover { width: 100%; height: 100%; min-height: 0; max-width: 570px; justify-self: center; pointer-events: none; }
+.category-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 17px; border-top: 1px solid #7b916b30; color: #80906e; font-size: 12px; }
+.category-card-cta { display: flex; align-items: center; gap: 15px; color: #3b5c40; font-size: 14px; }
+.category-card-cta .app-icon { width: 18px; height: 18px; }
+.collection-games { display: grid; grid-template-columns: repeat(var(--game-count,3),minmax(0,1fr)); gap: 20px; order: initial; min-height: 0; }
+.category-game-list { display: grid; grid-template-rows: minmax(0,1fr) auto; min-height: 0; gap: 10px; }
+.category-game-pager { display: flex; align-items: center; justify-content: center; gap: 16px; }.category-game-pager > span { font-size: 11px; color: #879576; }.category-game-pager .review-button { min-height: 32px; }.category-game-pager .app-icon { width: 13px; height: 13px; }
+.game-card-heading .tutorial-trigger { min-height: 28px; padding: 4px 6px; font-size: 11px; }.game-card-heading .tutorial-trigger .app-icon { width: 13px; height: 13px; }
+.collection-game-card[data-game="go"] { background: radial-gradient(ellipse at 0 0,#e3d7b9,transparent 70%),#eee8d6; border-color: #cec2a3; }
+.collection-game-card[data-game="gomoku"] { background: radial-gradient(ellipse at 0 0,#d7dfcb,transparent 70%),#e9ecdf; border-color: #c3ceb5; }
+.collection-game-card { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto auto; gap: 16px; align-items: center; min-height: 0; border-radius: 18px; padding: 22px; }
+.collection-game-card[data-game="junqi"] { border-color: #c5d0cd; background: radial-gradient(ellipse at 0 0,#dce5e3,transparent 70%),#e9ede5; }
+.collection-game-card[data-game="xiangqi"] { border-color: #d7c8a8; background: radial-gradient(ellipse at 0 0,#e9dab9,transparent 70%),#f3ead8; }
+.collection-game-card[data-game="chess"] { border-color: #becbb9; background: radial-gradient(ellipse at 0 0,#d5dfc9,transparent 70%),#e9eddf; }
+.collection-game-cover { position: static; z-index: auto; width: 100%; height: 100%; min-height: 0; margin: 0; opacity: 1; transform: none; pointer-events: none; }
+.collection-game-cover .game-cover { width: 100%; height: 100%; max-height: 340px; }
+.game-card-copy { align-self: end; min-width: 0; }
+.game-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.game-card-copy h2 { flex: none; font: clamp(24px,2.6vw,36px) 'Songti SC',serif; margin: 0; }
+.collection-game-note { min-height: 0; color: #80906d; font-size: 11px; line-height: 1.5; margin: 8px 0 0; }
+.board-practice-entry { display: flex; align-items: center; gap: 1px; flex: none; background: transparent; border: 0; padding: 6px 0; color: #667b52; font: inherit; font-size: 11px; cursor: pointer; }
+.board-practice-entry .app-icon { width: 13px; height: 13px; }
+.collection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; align-self: end; }
+.collection-actions .button, .collection-actions .practice-button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 8px 6px; border-radius: 8px; font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.collection-actions .app-icon { width: 14px; height: 14px; }
+.collection-actions .practice-button { grid-column: 1/-1; border: 1px solid #b9c6ab; color: #57714a; background: #f8f7ec70; min-height: 36px; }
+.collection-game-card[data-game="junqi"] .collection-actions { grid-template-columns: 1fr; }
+.collection-game-card[data-game="xiangqi"] .button:first-child { background: #6b6345; }
+.collection-game-card[data-game="chess"] .button:first-child { background: #536c50; }
+.collection-home .home-footer { min-height: 23px; font-size: 10px; line-height: 1.4; gap: 12px; padding: 8px 0 0; margin: 0; }
+.home-join-dialog.tools-dialog { width: min(680px,100%); overflow: hidden; }
+.home-join-dialog .join-panel { padding: 0; border: 0; box-shadow: none; background: transparent; max-width: none; }
+.home-join-dialog .form-grid { grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 15px; }
+.home-join-dialog .join-panel .muted { margin: 8px 0; font-size: 12px; }
+.home-join-dialog .room-roster { display: flex; gap: 9px; margin: 12px 0; }
+.home-join-dialog .roster-row { flex: 1; min-width: 0; padding: 6px 8px; }
+.home-join-dialog .seat-name { margin: 0; font-size: 11px; }
+.home-join-dialog .dock-actions { display: flex; gap: 12px; margin-top: 10px; }
+.home-join-dialog .button { min-height: 36px; margin: 0; }
+.home-join-dialog input, .home-join-dialog select { font-size: 16px; min-height: 37px; }
+.xiangqi-utilities .host-tools-menu { top: auto; bottom: calc(100% + 7px); }
+@media (max-width:1100px) {
+ .lobby-location { gap: 12px; }
+ .lobby-toolbar--category .lobby-intro p { display: none; }
+ .category-card { padding: 24px; }
+ .collection-game-card { padding: 18px; }
+ .game-card-copy h2 { font-size: 26px; }
+}
+@media (max-height:550px) and (orientation:landscape) {
+ .collection-home { gap: 10px; padding: max(6px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(5px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
+ .collection-header { min-height: 31px; padding-bottom: 5px; gap: 12px; }
+ .collection-header .brand { font-size: 17px; }.collection-header .brand-mark { width: 25px; height: 25px; }
+ .lobby-header-motto { font-size: 10px; }.lobby-header-actions { gap: 8px; }.lobby-header-actions > .button { min-height: 28px; padding: 4px 9px; font-size: 10px; }.lobby-header-actions .tool-button { min-height: 28px; }
+ .lobby-toolbar { gap: 10px; }.lobby-intro h1 { font-size: 21px; }.lobby-intro p { margin-top: 3px; font-size: 10px; }
+ .lobby-toolbar--category .lobby-intro h1 { font-size: 20px; }.lobby-toolbar--category .lobby-intro p { display: none; }.lobby-intro h1 small { font-size: 9px; margin-left: 7px; }
+ .category-back { min-height: 32px; padding: 5px 8px 5px 4px; font-size: 10px; gap: 2px; }.category-back .app-icon { width: 12px; height: 12px; }
+ .collection-settings { gap: 12px; }.collection-settings .field, .practice-tier { gap: 5px; font-size: 10px; }.collection-settings input { width: 125px; min-height: 32px; height: 32px; padding: 4px 8px; }.practice-tier select { width: 65px; height: 32px; min-height: 32px; padding: 3px 5px; font-size: 12px; }
+ .lobby-resume { min-height: 32px; padding: 5px 7px; font-size: 10px; }.lobby-resume small { display: none; }
+ .category-picker { gap: 16px; }.category-card { gap: 6px; padding: 14px 20px; border-radius: 15px; }.category-card-title { font-size: 28px; }.category-card-note { font-size: 10px; }.category-card-footer { padding-top: 8px; font-size: 10px; }.category-card-cta { gap: 8px; font-size: 11px; }.category-card-cta .app-icon { width: 14px; height: 14px; }
+ .collection-games { gap: 12px; }.collection-game-card { gap: 8px; padding: 12px; border-radius: 12px; }.game-card-copy h2 { font-size: 23px; }.game-card-heading { gap: 2px 5px; }.collection-game-note { display: none; }
+ .board-practice-entry { font-size: 10px; padding: 4px 0; }
+ .collection-actions { gap: 5px; }.collection-actions .button, .collection-actions .practice-button { min-height: 32px; padding: 5px 4px; font-size: 10px; border-radius: 6px; gap: 3px; }.collection-actions .practice-button { min-height: 28px; }.collection-actions .app-icon { width: 12px; height: 12px; }
+ .collection-home .home-footer { min-height: 17px; padding-top: 4px; font-size: 9px; }
+ .home-join-dialog.tools-dialog { padding: 12px 18px; }.home-join-dialog .tools-dialog-heading h2 { font-size: 22px; }.home-join-dialog .form-grid { margin-top: 8px; }.home-join-dialog .field { gap: 4px; font-size: 11px; }
+}
+@media (max-width:740px) and (orientation:landscape) {
+ .lobby-header-motto { display: none; }.lobby-location { gap: 8px; }.lobby-intro h1 small { display: none; }
+ .collection-settings { gap: 8px; }.collection-settings input { width: 100px; }.practice-tier { gap: 4px; }
+ .lobby-toolbar--category .lobby-resume .app-icon { display: none; }
+ .category-picker { gap: 12px; }.category-card { padding: 12px 16px; }.category-card-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+ .collection-games { gap: 8px; }.collection-game-card { padding: 10px; }.game-card-copy h2 { font-size: 22px; }.board-practice-entry { font-size: 9px; }
+ .collection-games[data-category="board"] .collection-actions { grid-template-columns: 1fr; }
+ .collection-actions .app-icon { display: none; }
+}
+@media (max-height:340px) and (orientation:landscape) {
+ .collection-home { gap: 7px; }.lobby-intro h1 { font-size: 19px; }.lobby-toolbar:not(.lobby-toolbar--category) .lobby-intro p { display: none; }
+ .category-card { padding: 10px 14px; }.category-card-title { font-size: 25px; }.category-card-heading { flex-direction: row; align-items: baseline; }.category-card-note { font-size: 9px; }
+ .collection-game-card { padding: 8px; gap: 5px; }.game-card-copy h2 { font-size: 20px; }.board-practice-entry { padding: 2px 0; }
+ .collection-home .home-footer { min-height: 12px; font-size: 8px; }
+ .category-game-list { gap: 5px; }.category-game-pager { gap: 10px; }.category-game-pager > span { font-size: 9px; }.category-game-pager .review-button { min-height: 26px; padding: 4px 8px; font-size: 10px; }
+}

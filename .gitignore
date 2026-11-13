@@ -1,0 +1,29 @@
+node_modules/
+dist/
+*.local
+.tmp-visual/
+.douzero/
+.guandan/
+var/
+__pycache__/
+.DS_Store
+npm-debug.log*
+
+.ai/
+.tmp-ai-backup/
+.tmp-linux-export/
+
+# Local credentials and editor state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+.tmp-*/
+
+# Local browser acceptance screenshots
+smoke/
+
+# Native CPU chess engines and networks (installed locally)
+.board-ai/
