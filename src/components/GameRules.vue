@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { GAME_DEFINITIONS, isBoardGame } from '../../shared/gameCatalog'
 import type { GameKind } from '../../shared/protocol'
 import { RULE_TABS } from '../gamePresentation'
+import { BOARD_UNDO_LIMIT } from '../../shared/boardUndo'
 
 /**
  * User-facing rule sheet. It states the frozen choices of this version next to the source they
@@ -87,22 +88,25 @@ const CHESS: RuleRow[] = [
   { term: '本房间和棋约定', detail: '双方可同意和棋。本房间在同一局面（含行棋方、易位权及有效过路兵权）三次出现时自动和棋；连续 50 回合（100 手）无吃子且无兵移动也自动和棋，不另行申请。采用休闲对弈约定，无比赛棋钟。' },
   { term: '重连与记录', detail: '掉线暂停行棋，重连恢复同一局面。结束后房主可再开一局，公开棋谱与战绩保存在本浏览器。对局只保存在服务内存，重启后清空。' },
 ]
-const COMPUTER: RuleRow = { term: '五档人机对弈', detail: '首页或准备页可选入门、简单、普通、困难、挑战。手机默认玩家先手，平板可选先后手。电脑思考时不能替它走棋；异常可重试。难度为相对档位，人机模式按棋规自动判和，不提供协议和棋。' }
-XIANGQI.push(COMPUTER)
-CHESS.push(COMPUTER)
+const UNDO: RuleRow = { term: '悔棋', detail: `联机由对方同意后退回请求者上一手之前，答复前可撤回。平板同屏确认后撤销上一手。真人对局每方每局最多成功悔棋 ${BOARD_UNDO_LIMIT} 次。` }
+const COMPUTER: RuleRow = { term: '五档人机对弈', detail: '首页或准备页可选入门、简单、普通、困难、挑战。手机默认玩家先手，平板可选先后手。等电脑走完后可悔棋，退回到你上一手之前，次数不限。行棋异常可重试，和棋由棋规判定。' }
+XIANGQI.push(UNDO, COMPUTER)
+CHESS.push(UNDO, COMPUTER)
 const GO: RuleRow[] = [
-  { term: '棋盘与操作', detail: '房主在准备页选 9、13、19 路。黑先白后，轮流在空交叉点落一子；先预选，再点“确认落子”。棋子不能移动，不提供悔棋。' },
+  { term: '棋盘与操作', detail: '房主在准备页选 9、13、19 路。黑先白后，轮流在空交叉点落一子；先预选，再点“确认落子”。棋子落下后固定在交叉点上。' },
   { term: '气与提子', detail: '上下左右的空点是气，斜角不算。同色横竖相邻连成整块，共享不重复的气。落子先提掉无气的对方棋，再检查己方；禁止不提子而让自己整块无气。' },
   { term: '劫与重复', detail: '本房间禁止落成此前出现过的整张盘面，包含立即提劫与更长循环；停一手不清空历史。需先在别处改变局面。' },
   { term: '停一手与死子', detail: '双方连续停一手后，进入死子确认；点击棋子标记或取消整块死子。任何改动撤销双方确认，双方同意当前结果后才结算。死活有争议可恢复原盘面继续下棋，不自动判定死棋。' },
   { term: '数子与贴点', detail: '采用面积计分：盘上己子 + 己方围住的空。邻接双方的空区为中立。白方加 7.5 贴点（所有棋盘大小相同），提子数不再另加。不采用日式数目法，不设让子或竞赛棋钟。' },
   { term: '教程与对局', detail: '基础和进阶分别选择、分别保存进度；进阶附网上高级课程，可按需观看。平板两人轮流操作，联机双方准备后房主开局；掉线暂停、重连恢复。结束后可查棋谱和战绩。' },
+  { term: UNDO.term, detail: `${UNDO.detail} 停一手计入棋谱，确认死子期间暂停悔棋。` },
 ]
 const GOMOKU: RuleRow[] = [
   { term: '棋盘与操作', detail: '15×15 交叉点，黑先白后，双方轮流一子。点空交叉点预选，再确认落子；未确认时可以换点。已有棋子的点不能再下。' },
   { term: '五连获胜', detail: '横、竖、两条斜线都有效。同色棋子连续紧挨，先连成五子或更多立即获胜，系统标出获胜连线；隔空或夹着对方棋子不算。' },
-  { term: '无禁手规则', detail: '普通无禁手规则，不是连珠竞赛规则。三三、四四、长连都不禁止，六连以上也赢。不设交换开局，不设让子，不提供悔棋。' },
+  { term: '无禁手规则', detail: '普通无禁手规则，不是连珠竞赛规则。三三、四四、长连都不禁止，六连以上也赢。不设交换开局，不设让子。' },
   { term: '结束与联机', detail: '满盘仍无人连五，判和；可以认输，不能停一手。平板双人同屏直接开始；联机双方准备后房主开局，掉线暂停并可重连。结束后房主可再开一局。' },
+  UNDO,
 ]
 const RULE_ROWS: Record<GameKind, RuleRow[]> = {
   doudizhu: DOUDIZHU,

@@ -5,7 +5,12 @@
 import type { Card, GameKind, GameView, GuandanDeclaration, HintPlay, Phase, TablePlay } from '../../shared/protocol';
 
 /** Client commands a game engine may own; every other command is room authority. */
-export type GameCommandType = 'bid' | 'play' | 'pass' | 'tribute' | 'returnTribute' | 'junqiSetup' | 'junqiMove' | 'junqiResign' | 'xiangqiMove' | 'xiangqiResign' | 'xiangqiDraw' | 'chessMove' | 'chessResign' | 'chessDraw' | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore';
+export type GameCommandType = 'bid' | 'play' | 'pass' | 'tribute' | 'returnTribute' | 'junqiSetup' | 'junqiMove' | 'junqiResign' | 'xiangqiMove' | 'xiangqiResign' | 'xiangqiDraw' | 'xiangqiUndo' | 'chessMove' | 'chessResign' | 'chessDraw' | 'chessUndo' | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneUndo';
+
+/** Trusted room options, separate from client payloads. */
+export interface GameCommandOptions {
+  unlimitedUndo?: boolean;
+}
 
 export type GameResult = { ok: true } | { ok: false; message: string };
 
@@ -44,7 +49,7 @@ export interface RoomGame {
   start(): void;
 
   /** Run one command from an already-authenticated seat. Room owns identity, replay, ack, version. */
-  command(seatId: number, type: GameCommandType, payload: Record<string, unknown>): GameResult;
+  command(seatId: number, type: GameCommandType, payload: Record<string, unknown>, options?: GameCommandOptions): GameResult;
 
   /** Read-only legal suggestions for one seat, best-first. Never mutates the deal. */
   hint(seatId: number): HintResult;

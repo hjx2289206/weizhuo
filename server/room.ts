@@ -43,6 +43,7 @@ import { ChessGame } from './games/chess';
 import { StoneGame } from './games/stones';
 import { stoneSideName } from '../shared/stones';
 import { BOARD_AI_DIFFICULTIES, boardAiLabel, isBoardAiDifficulty, type BoardAiConfig } from '../shared/boardAi';
+import { boardUndoTarget, type BoardUndoSide } from '../shared/boardUndo';
 import { boardAiPolicy, boardSearchPosition, type BoardAiPolicy } from './bots/boardAi';
 import { GuandanGame } from './games/guandan';
 import { createPlayStamper } from './games/playLog';
@@ -561,6 +562,10 @@ export class Room {
 
   private dispatch(peer: Peer, type: string, payload: Record<string, unknown>, id: string): boolean {
     switch (type) {
+      case 'chessUndo':
+      case 'xiangqiUndo':
+      case 'stoneUndo':
+        return this.boardUndo(peer, type, payload.action, id);
       case 'boardAi':
         return this.configureBoardAi(peer, payload, id);
       case 'boardAiRetry':
@@ -630,6 +635,42 @@ export class Room {
       default:
         return this.fail(peer, id, '未知的操作类型');
     }
+  }
+
+  private boardUndo(peer: Peer, type: 'chessUndo' | 'xiangqiUndo' | 'stoneUndo', action: unknown, id: string): boolean {
+    if (action === 'direct') return this.fail(peer, id, '请使用悔棋请求');
+    const view = this.engine.view(null);
+    const board = view.game === 'chess' && type === 'chessUndo' ? view.chess
+      : view.game === 'xiangqi' && type === 'xiangqiUndo' ? view.xiangqi
+      : (view.game === 'go' || view.game === 'gomoku') && type === 'stoneUndo' ? view.stones : null;
+    if (!board) return this.fail(peer, id, '本游戏不支持这个操作');
+
+    const computer = this.boardAiConfig;
+    let seat: BoardUndoSide | undefined;
+    if (this.sharedChess) {
+      if (!this.isHost(peer)) return this.fail(peer, id, '请在创建本局的平板上操作');
+      seat = computer ? (computer.side === 0 ? 1 : 0) : board.moves.at(-1)?.side;
+    } else {
+      const player = this.requiredPlayer(peer, id);
+      if (!player) return false;
+      if (this.isManaged(player)) return this.fail(peer, id, '托管中，请先取消托管');
+      if (this.paused()) return this.fail(peer, id, '有玩家掉线，等待重连');
+      if (player.seatId === 0 || player.seatId === 1) seat = player.seatId;
+    }
+
+    const immediate = this.sharedChess || computer !== null;
+    if (immediate && action !== 'request') return this.fail(peer, id, '当前对局没有协商悔棋请求');
+    if (seat === undefined) return this.fail(peer, id, '本局还没有可以撤销的着法');
+    // A request can race a computer reply. Stop the search before changing its history.
+    if (computer && boardUndoTarget(board.moves, seat) >= 0) this.cancelBoardAi();
+    const result = this.engine.command(seat, type, { action: immediate ? 'direct' : action }, { unlimitedUndo: computer !== null });
+    if (!result.ok) return this.fail(peer, id, result.message);
+    if (immediate || action === 'accept') {
+      if (computer) this.boardAiError = null;
+      this.invalidateAutomation();
+      // The command success path refreshes automation before publishing the new snapshot.
+    }
+    return true;
   }
 
   /** Authoritative command facts for the opt-in collector; any error stays inside the collector. */

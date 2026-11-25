@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Chess } from 'chess.js'
 import { chessCoordinate, chessIndex, type ChessPromotion } from '../../shared/chess'
-import { xiangqiDestinations, type XiangqiBoard } from '../../shared/xiangqi'
+import { rewindXiangqiBoard, xiangqiDestinations, type XiangqiBoard } from '../../shared/xiangqi'
 import { BOARD_AI_DIFFICULTIES, type BoardAiDifficulty, type BoardAiGame } from '../../shared/boardAi'
 import type { ChessGameFields, XiangqiGameFields } from '../../shared/protocol'
 import { searchUci } from './uci'
@@ -52,8 +52,7 @@ export function boardSearchPosition(view: ChessGameFields | XiangqiGameFields): 
     const engine = new Chess(view.chess.fen), moves = view.chess.moves.map(m=>`${chessCoordinate(m.from)}${chessCoordinate(m.to)}${m.promotion??''}`)
     return { game:'chess', position:`position fen ${view.chess.startFen}${moves.length?` moves ${moves.join(' ')}`:''}`, legalMoves:engine.moves({verbose:true}).map(m=>`${m.from}${m.to}${m.promotion??''}`) }
   }
-  const initial = structuredClone(view.xiangqi.board)
-  for(const move of [...view.xiangqi.moves].reverse()) { initial[move.from]={...move.piece}; initial[move.to]=move.captured?{...move.captured}:null }
+  const initial = rewindXiangqiBoard(view.xiangqi.board, view.xiangqi.moves)
   const history = view.xiangqi.moves.map(m=>`${xiangqiUciSquare(m.from)}${xiangqiUciSquare(m.to)}`)
   const legalMoves = view.xiangqi.board.flatMap((p,from)=>p?.side===view.turn?xiangqiDestinations(view.xiangqi.board,from).map(to=>`${xiangqiUciSquare(from)}${xiangqiUciSquare(to)}`):[])
   return { game:'xiangqi', position:`position fen ${xiangqiFen(initial)}${history.length?` moves ${history.join(' ')}`:''}`, legalMoves }

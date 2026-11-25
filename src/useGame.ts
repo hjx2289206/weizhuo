@@ -15,6 +15,7 @@ import type {
 } from '../shared/protocol';
 import { quickPhrase } from '../shared/phrases';
 import { isBoardGame, isGameKind } from '../shared/gameCatalog';
+import type { BoardUndoClientAction } from '../shared/boardUndo';
 import {
   browserStores,
   forgetCredential,
@@ -965,6 +966,14 @@ export function useGame() {
   }
   async function chessMove(from: number, to: number, promotion?: import('../shared/chess').ChessPromotion): Promise<void> { error.value = ''; await request('chessMove', { from, to, ...(promotion ? { promotion } : {}) }); }
   async function stoneMove(point: number): Promise<void> { error.value = ''; await request('stoneMove', { point }); }
+  async function boardUndo(action: BoardUndoClientAction): Promise<void> {
+    const game = state.value?.game;
+    const type = game === 'chess' ? 'chessUndo' : game === 'xiangqi' ? 'xiangqiUndo'
+      : game === 'go' || game === 'gomoku' ? 'stoneUndo' : null;
+    if (!type) throw new Error('本游戏不支持悔棋');
+    error.value = '';
+    await request(type, { action });
+  }
   async function stonePass(): Promise<void> { error.value = ''; await request('stonePass', {}); }
   async function stoneResign(side?: 0 | 1): Promise<void> { error.value = ''; await request('stoneResign', side === undefined ? {} : { side }); }
   async function stoneScore(action: 'mark' | 'confirm' | 'resume', point?: number, side?: 0 | 1): Promise<void> {
@@ -1319,7 +1328,7 @@ export function useGame() {
   return {
     boardAiSetupRequested, configureBoardAi, retryBoardAi, createBoardPractice,
     junqiSetup, junqiMove, junqiResign, setJunqiMode, chessMove, chessResign, chessDraw, xiangqiMove, xiangqiResign, xiangqiDraw,
-    stoneMove, stonePass, stoneResign, stoneScore, stoneSetup,
+    stoneMove, stonePass, stoneResign, stoneScore, stoneSetup, boardUndo,
     state,
     connected,
     reconnectNow,

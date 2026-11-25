@@ -1,10 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import type { Card, StoneGameFields } from '../../shared/protocol'
 import { GO_SIZES, gomokuLine, playGo, scoreGo, stoneCoordinate, stoneGroup, stonePositionKey, stoneSideName, validStonePoint, type StoneBoard, type StoneKind, type StoneMove, type StoneSide } from '../../shared/stones'
+import { BoardUndo } from './boardUndo'
 import type { GameCommandType, GameResult, RoomGame } from './types'
 
 /** Trusted local diagrams for tests/tutorials only. Room payloads never reach this constructor. */
 export interface StoneSetup { size?: number; board?: StoneBoard; turn?: StoneSide; history?: string[] }
+
+interface GoUndoPosition {
+  board: StoneBoard
+  captured: [number, number]
+  passes: number
+  addedKey: string | null
+}
+
 export class StoneGame implements RoomGame {
   readonly seatCount = 2 as const
   phase: 'lobby' | 'playing' | 'finished' = 'lobby'
@@ -13,6 +22,8 @@ export class StoneGame implements RoomGame {
   private turn: StoneSide
   private positions: Set<string>
   private moves: StoneMove[] = []
+  private goHistory: GoUndoPosition[] = []
+  private undo = new BoardUndo()
   private round = 1
   private roundId = randomUUID()
   private stage: 'play' | 'scoring' = 'play'
@@ -38,15 +49,27 @@ export class StoneGame implements RoomGame {
     this.size = size as number; this.board = Array(this.size ** 2).fill(null); this.positions = new Set([stonePositionKey(this.board)])
     return { ok: true }
   }
-  start(): void { if (this.phase === 'lobby') this.phase = 'playing' }
+  start(): void {
+    if (this.phase !== 'lobby') return
+    this.phase = 'playing'
+    if (this.kind === 'go') this.saveGoPosition(null)
+  }
   command(seat: number, type: GameCommandType, payload: Record<string, unknown>): GameResult {
     const fail = (message: string): GameResult => ({ ok: false, message })
     if (seat !== 0 && seat !== 1) return fail('只有入座玩家可以落子')
     if (this.phase !== 'playing') return fail('请先准备并开始对局')
+    if (type === 'stoneUndo') {
+      if (this.stage === 'scoring') return fail('确认死子期间不能悔棋')
+      return this.undo.command(seat, payload.action, this.moves, target => this.rewind(target), false)
+    }
     if (type === 'stoneResign') { this.finish(seat === 0 ? 1 : 0, `${stoneSideName(seat)}认输`); return { ok: true } }
     if (type === 'stoneScore') {
       if (this.kind !== 'go' || this.stage !== 'scoring') return fail('双方连续停一手后才能确认死子')
-      if (payload.action === 'resume') { this.stage = 'play'; this.passes = 0; this.dead.clear(); this.confirmed = [false,false]; this.scoreRevision++; return { ok: true } }
+      if (payload.action === 'resume') {
+        this.stage = 'play'; this.passes = 0; this.dead.clear(); this.confirmed = [false,false]; this.scoreRevision++
+        this.goHistory.at(-1)!.passes = 0
+        return { ok: true }
+      }
       if (payload.action === 'mark') {
         if (!validStonePoint(payload.point, this.size) || this.board[payload.point] === null) return fail('请点击一块需要标记或取消的棋子')
         const group = stoneGroup(this.board, payload.point, this.size).points, marked = this.dead.has(payload.point)
@@ -69,21 +92,25 @@ export class StoneGame implements RoomGame {
       if (this.kind !== 'go') return fail('五子棋不能停一手')
       this.moves.push({ ply: this.moves.length + 1, side: seat, point: null, captured: [], notation: '停一手' })
       this.turn = seat === 0 ? 1 : 0; this.passes++
+      this.undo.undoOffer = null
+      this.saveGoPosition(null)
       if (this.passes >= 2) { this.stage = 'scoring'; this.dead.clear(); this.confirmed = [false,false]; this.scoreRevision++ }
       return { ok: true }
     }
     const point = payload.point
     if (!validStonePoint(point, this.size) || this.board[point] !== null) return fail('请在空的交叉点落子')
-    let captured: number[] = []
+    let captured: number[] = [], addedKey: string | null = null
     if (this.kind === 'go') {
       const result = playGo(this.board, point, seat, this.size)
       if (typeof result === 'string') return fail(result)
       const key = stonePositionKey(result.board)
       if (this.positions.has(key)) return fail('打劫／同形再现：不能落成此前出现过的盘面，请先在别处行棋')
       this.board = result.board; captured = result.captured; this.positions.add(key); this.captured[seat] += captured.length
+      addedKey = key
     } else this.board[point] = seat
     this.moves.push({ ply: this.moves.length + 1, side: seat, point, captured, notation: `${stoneCoordinate(point, this.size)}${captured.length ? ` · 提 ${captured.length} 子` : ''}` })
-    this.passes = 0; this.turn = seat === 0 ? 1 : 0
+    this.passes = 0; this.turn = seat === 0 ? 1 : 0; this.undo.undoOffer = null
+    if (this.kind === 'go') this.saveGoPosition(addedKey)
     if (this.kind === 'gomoku') {
       this.winningLine = gomokuLine(this.board, point, this.size)
       if (this.winningLine.length) this.finish(seat, `${stoneSideName(seat)}连成 ${this.winningLine.length} 子`)
@@ -91,18 +118,39 @@ export class StoneGame implements RoomGame {
     }
     return { ok: true }
   }
-  private finish(winner: StoneSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason }
+  private saveGoPosition(addedKey: string | null): void {
+    // Go replaces its board on each placement; passes can safely share that board.
+    this.goHistory.push({ board: this.board, captured: [...this.captured], passes: this.passes, addedKey })
+  }
+  private rewind(target: number): void {
+    const undone = this.moves.splice(target)
+    this.turn = undone[0]!.side
+    if (this.kind === 'go') {
+      for (const { addedKey } of this.goHistory.splice(target + 1)) {
+        if (addedKey !== null) this.positions.delete(addedKey)
+      }
+      const previous = this.goHistory[target]!
+      this.board = previous.board
+      this.captured = [...previous.captured]
+      this.passes = previous.passes
+    } else {
+      for (const move of undone) this.board[move.point!] = null
+      this.winningLine = []
+    }
+  }
+  private finish(winner: StoneSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason; this.undo.undoOffer = null }
   view(): StoneGameFields {
     return { game: this.kind, phase: this.phase, turn: this.phase === 'playing' && this.stage === 'play' ? this.turn : null, lastPlay: null, tablePlays: [], trickStartIndex: 0,
       stones: structuredClone({ round: this.round, roundId: this.roundId, size: this.size, board: this.board, moves: this.moves, stage: this.stage, passes: this.passes,
         captured: this.captured, dead: [...this.dead].sort((a,b) => a-b), confirmed: this.confirmed, scoreRevision: this.scoreRevision,
         score: this.kind === 'go' && this.stage === 'scoring' ? scoreGo(this.board, this.size, [...this.dead]) : null,
-        winner: this.winner, draw: this.draw, reason: this.reason, winningLine: this.winningLine }) }
+        winner: this.winner, draw: this.draw, reason: this.reason, winningLine: this.winningLine, ...this.undo }) }
   }
   restart(): GameResult {
     if (this.phase !== 'finished') return { ok: false, message: '本局结束后才能重新开局' }
     this.round++; this.roundId = randomUUID(); this.phase = 'lobby'; this.stage = 'play'; this.board = Array(this.size ** 2).fill(null); this.turn = 0
     this.positions = new Set([stonePositionKey(this.board)]); this.moves = []; this.passes = 0; this.captured = [0,0]; this.dead.clear(); this.confirmed = [false,false]; this.scoreRevision = 0
+    this.goHistory = []; this.undo = new BoardUndo()
     this.winner = null; this.draw = false; this.reason = ''; this.winningLine = []
     return { ok: true }
   }
