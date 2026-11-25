@@ -1,4 +1,5 @@
 import { isBoardAiGame, type BoardAiGame } from '../../shared/boardAi'
+import { REVERSI_FLIP_MS } from '../../shared/reversi'
 import type { GameView } from '../../shared/protocol'
 import type { GameCommandType } from '../games/types'
 import { boardSearchPosition, type BoardAiMove, type BoardSearchPosition } from './boardAi'
@@ -9,6 +10,7 @@ type Command = { type: GameCommandType; payload: Record<string, unknown> }
 interface BoardAiContext {
   roundId: string
   ply: number
+  delayMs: number
   position: () => BoardSearchPosition
   command: (move: BoardAiMove) => Command
 }
@@ -26,6 +28,7 @@ function adapter<K extends BoardAiGame>(
   board: (view: ViewOf<K>) => { roundId: string; moves: readonly unknown[] },
   position: (view: ViewOf<K>) => BoardSearchPosition,
   payload: (move: BoardAiMove) => Record<string, unknown>,
+  delayMs = 300,
 ): BoardAiAdapter {
   return {
     move, resign,
@@ -33,7 +36,7 @@ function adapter<K extends BoardAiGame>(
       if (view.game !== game) throw new Error('棋类搜索适配器与当前游戏不匹配')
       const gameView = view as ViewOf<K>
       const { roundId, moves } = board(gameView)
-      return { roundId, ply: moves.length, position: () => position(gameView), command: result => ({ type: move, payload: payload(result) }) }
+      return { roundId, ply: moves.length, delayMs, position: () => position(gameView), command: result => ({ type: move, payload: payload(result) }) }
     },
   }
 }
@@ -55,6 +58,13 @@ export const BOARD_AI_ADAPTERS: Record<BoardAiGame, BoardAiAdapter> = {
     if (move.kind !== 'gomoku') throw new Error('引擎返回的走法类型无效')
     return { point: move.point }
   }),
+  reversi: adapter('reversi', 'reversiMove', 'reversiResign', view => view.reversi, view => {
+    if (view.turn !== 0 && view.turn !== 1) throw new Error('当前局面没有行棋方')
+    return { kind: 'reversi', game: 'reversi', board: view.reversi.board, toMove: view.turn }
+  }, move => {
+    if (move.kind !== 'reversi') throw new Error('引擎返回的走法类型无效')
+    return { point: move.point }
+  }, REVERSI_FLIP_MS),
 }
 
 export function boardAiContext(view: GameView): BoardAiContext | null {

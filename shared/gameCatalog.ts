@@ -5,7 +5,7 @@
 import type { GameKind, RoomMode } from './protocol';
 
 /** Display order within each category in the hall. */
-export const GAME_KINDS = ['doudizhu', 'guandan', 'xiangqi', 'go', 'gomoku', 'chess', 'junqi'] as const satisfies readonly GameKind[];
+export const GAME_KINDS = ['doudizhu', 'guandan', 'xiangqi', 'go', 'gomoku', 'reversi', 'chess', 'junqi'] as const satisfies readonly GameKind[];
 const gameKindSet: ReadonlySet<unknown> = new Set(GAME_KINDS);
 
 export function isGameKind(value: unknown): value is GameKind {
@@ -34,6 +34,11 @@ export const GAME_DEFINITIONS = {
   gomoku: {
     name: '五子棋', category: 'board', seatCount: 2, deckCount: 0,
     brief: '15 路无禁手，横竖斜先连成五子或以上获胜。',
+    roomModes: ['tablet', 'phone'],
+  },
+  reversi: {
+    name: '黑白棋', category: 'board', seatCount: 2, deckCount: 0,
+    brief: '8×8 棋盘，夹住对手棋子并翻面，终局子多者胜。',
     roomModes: ['tablet', 'phone'],
   },
   chess: {
@@ -77,6 +82,10 @@ export function isBoardGame(game: GameKind): game is BoardGameKind {
   return GAME_DEFINITIONS[game].category === 'board';
 }
 export function isStoneGame(game: GameKind): game is 'go' | 'gomoku' { return game === 'go' || game === 'gomoku'; }
+
+export function isBlackFirstGame(game: GameKind | null | undefined): boolean {
+  return game === 'reversi' || (game != null && isStoneGame(game));
+}
 
 export function supportsRoomMode(game: GameKind, mode: RoomMode): boolean {
   const modes: readonly RoomMode[] = GAME_DEFINITIONS[game].roomModes;

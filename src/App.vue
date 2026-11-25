@@ -2,6 +2,7 @@
 import GuandanPhoneScreen from './screens/GuandanPhoneScreen.vue'
 import XiangqiScreen from './screens/XiangqiScreen.vue'
 import ChessScreen from './screens/ChessScreen.vue'
+import ReversiScreen from './screens/ReversiScreen.vue'
 import StoneScreen from './screens/StoneScreen.vue'
 import { isBoardGame, isStoneGame } from '../shared/gameCatalog'
 import JunqiScreen from './screens/JunqiScreen.vue'
@@ -49,6 +50,7 @@ function leave(): void {
     <JunqiScreen v-if="mode !== 'home' && gameKind === 'junqi'" :game="game" @animating="boardAnimating = $event" />
     <XiangqiScreen v-else-if="mode !== 'home' && gameKind === 'xiangqi'" :game="game" @animating="boardAnimating = $event" />
     <ChessScreen v-else-if="mode !== 'home' && gameKind === 'chess'" :game="game" @animating="boardAnimating = $event" />
+    <ReversiScreen v-else-if="mode !== 'home' && gameKind === 'reversi'" :game="game" @animating="boardAnimating = $event" />
     <StoneScreen v-else-if="mode !== 'home' && gameKind !== null && isStoneGame(gameKind)" :game="game" @animating="boardAnimating = $event" />
     <TabletScreen v-else-if="mode === 'table'" :game="game" />
     <HomeScreen v-else-if="mode === 'home' || invitedChess" :game="game" />

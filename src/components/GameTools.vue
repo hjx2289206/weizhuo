@@ -35,6 +35,7 @@ const awakeText = computed(() => awake?.active.value ? '常亮中' : awake?.enab
 const phaseTip = computed(() => {
   const s = props.game.state.value
   if (!s) return '选择游戏查看玩法；扫码加入时先确认房间和座位。'
+  if (s.game === 'reversi') return '选有小圆点的格子，再确认落子。被夹住的棋子会翻面。无合法落点时自动停一手，终局子多者胜。'
   if (s.game === 'go') return '先点空交叉点，再确认落子。双方连续停一手后确认死子，双方同意后才按数子法结算，黑贴 7.5 点；有争议可以继续下棋。'
   if (s.game === 'gomoku' && s.boardAi?.config) return '先点空交叉点，再确认落子。等电脑走完后可悔棋，退回到你上一手之前。'
   if (s.game === 'gomoku') return '15 路无禁手五子棋，黑先白后。先点空交叉点再确认；横、竖、斜先连成五子或以上获胜。'

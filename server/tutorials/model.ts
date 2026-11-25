@@ -19,6 +19,7 @@ export function execute(engine: RoomGame, action: ScriptStep['action']): void {
 
 export function snapshot(engine: RoomGame, seat: number, code: string, version = 0): Snapshot {
   const view = engine.view(seat)
+  if (view.game === 'reversi') view.reversi.roundId = `${code}:round:${view.reversi.round}`
   if (view.game === 'chess') view.chess.roundId = `${code}:round:${view.chess.round}`
   if (view.game === 'xiangqi') view.xiangqi.roundId = `${code}:round:${view.xiangqi.round}`
   if (view.game === 'go' || view.game === 'gomoku') view.stones.roundId = `${code}:round:${view.stones.round}`

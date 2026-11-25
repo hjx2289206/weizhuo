@@ -62,6 +62,19 @@ const artworkId = `collection-cover-${useId()}`
       <template v-if="game === 'go'"><g v-for="(point,i) in [20,21,22,29,40,41,49,50,58,59]" :key="point"><ellipse :cx="16+(point%9)*18+1" :cy="18+Math.floor(point/9)*18" rx="8" ry="7" fill="#28412b30" /><circle :cx="16+(point%9)*18" :cy="16+Math.floor(point/9)*18" r="8" :fill="i < 4 ? '#2c3d2e' : '#fff9e7'" stroke="#9b9e83" stroke-width=".5" /></g></template>
       <template v-else><circle v-for="point in [21,30,39,48,57]" :key="point" :cx="16+(point%9)*18" :cy="16+Math.floor(point/9)*18" r="8" fill="#2c3d2e" /><circle v-for="point in [22,31,41,50]" :key="point" :cx="16+(point%9)*18" :cy="16+Math.floor(point/9)*18" r="8" fill="#fff9e7" stroke="#b5b49b" stroke-width=".6" /><path d="M70 52V124" fill="none" stroke="#c29a50" stroke-width="1.5" /></template>
     </g>
+    <g v-if="game === 'reversi'" transform="translate(94 18) rotate(-7 88 88)">
+      <rect x="2" y="5" width="176" height="176" rx="9" fill="#2a3849" opacity=".15" />
+      <rect width="176" height="176" rx="9" fill="#e6ddc9" stroke="#a89b83" />
+      <rect x="12" y="12" width="152" height="152" rx="2" fill="#65758c" />
+      <path v-for="i in 7" :key="i" :d="'M12 ' + (12 + i * 19) + 'H164M' + (12 + i * 19) + ' 12V164'" fill="none" stroke="#384960" stroke-width=".7" />
+      <rect x="13" y="13" width="17" height="17" rx="2.8" fill="#eccb8566" stroke="#ebce9b" />
+      <g v-for="(point, index) in [0, 9, 18, 28, 35, 36, 44, 27, 20, 37, 29, 45]" :key="point"
+        :transform="'translate(' + (21.5 + point % 8 * 19) + ' ' + (21.5 + Math.floor(point / 8) * 19) + ')'">
+        <ellipse cy="1.3" rx="7.3" ry="7" fill="#30425766" />
+        <circle r="7" :fill="index < 7 ? '#243446' : '#f3e9d2'" :stroke="index < 7 ? '#182735' : '#c7b693'" stroke-width=".6" />
+        <circle r="5.2" fill="none" :stroke="index < 7 ? '#708498' : '#9a8b6f'" stroke-width=".45" />
+      </g>
+    </g>
     <path d="M34 155C45 168 56 173 73 174M294 160C309 158 320 149 326 136" fill="none" stroke="#a6b295" stroke-width="1" stroke-linecap="round" />
     <path d="M37 153L33 159M324 133L329 138" fill="none" stroke="#a6b295" stroke-width="1" stroke-linecap="round" />
 

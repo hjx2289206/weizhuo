@@ -10,13 +10,15 @@ import { BOARD_AI_DIFFICULTIES, type BoardAiDifficulty, type BoardAiGame, type U
 import type { ChessGameFields, XiangqiGameFields } from '../../shared/protocol'
 import { searchUci } from './uci'
 import type { GomokuPosition } from './gomokuAi'
-import { searchGomokuWorker } from './gomokuWorker'
+import type { ReversiPosition } from './reversiAi'
+import { searchBoardWorker } from './boardSearchWorker'
 
 export type BoardEngine = 'stockfish' | 'fairy' | 'pikafish'
 export interface UciSearchPosition { kind: 'uci'; game: UciBoardAiGame; position: string; legalMoves: string[] }
 export type BoardSearchPosition = UciSearchPosition | (GomokuPosition & { kind: 'gomoku'; game: 'gomoku' })
+  | (ReversiPosition & { kind: 'reversi'; game: 'reversi' })
 export interface UciBoardMove { kind: 'uci'; from: number; to: number; promotion?: ChessPromotion }
-export type BoardAiMove = UciBoardMove | { kind: 'gomoku'; point: number }
+export type BoardAiMove = UciBoardMove | { kind: 'gomoku' | 'reversi'; point: number }
 export interface BoardAiPolicy {
   availability(game: BoardAiGame, difficulty: BoardAiDifficulty): { available: boolean; message: string | null }
   chooseMove(position: BoardSearchPosition, difficulty: BoardAiDifficulty, signal?: AbortSignal): Promise<BoardAiMove>
@@ -99,7 +101,7 @@ export class NativeBoardAiPolicy implements BoardAiPolicy {
     }
   }
   availability(game: BoardAiGame, difficulty: BoardAiDifficulty) {
-    if (game === 'gomoku') return { available:true, message:null }
+    if (game === 'gomoku' || game === 'reversi') return { available:true, message:null }
     const key=boardEngine(game,difficulty),entry=this.engines.get(key)
     if(entry) {
       try { for(const file of entry.files){const info=statSync(file.path);if(info.size!==file.size||info.mtimeMs!==file.mtime)throw new Error('changed')}return {available:true,message:null} }
@@ -119,10 +121,10 @@ export class NativeBoardAiPolicy implements BoardAiPolicy {
     if(position.kind==='uci'&&!position.legalMoves.length)throw new Error('当前局面没有合法走法')
     await this.acquire(signal)
     try {
-      if (position.kind === 'gomoku') {
-        const point = await searchGomokuWorker(position, difficulty, signal)
+      if (position.kind !== 'uci') {
+        const point = await searchBoardWorker(position, difficulty, signal)
         if (point === null) throw new Error('当前局面没有合法走法')
-        return { kind:'gomoku', point }
+        return { kind: position.kind, point }
       }
       const key=boardEngine(position.game,difficulty),result=await this.search(this.engines.get(key)!,key,position,difficulty,signal)
       const move=key==='fairy'?fairyXiangqiMove(result.move,-1):result.move

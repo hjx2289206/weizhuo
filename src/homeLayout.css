@@ -40,6 +40,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .category-game-pager { display: flex; align-items: center; justify-content: center; gap: 16px; }.category-game-pager > span { font-size: 11px; color: #879576; }.category-game-pager .review-button { min-height: 32px; }.category-game-pager .app-icon { width: 13px; height: 13px; }
 .game-card-heading .tutorial-trigger { min-height: 28px; padding: 4px 6px; font-size: 11px; }.game-card-heading .tutorial-trigger .app-icon { width: 13px; height: 13px; }
 .collection-game-card[data-game="go"] { background: radial-gradient(ellipse at 0 0,#e3d7b9,transparent 70%),#eee8d6; border-color: #cec2a3; }
+.collection-game-card[data-game="reversi"] { background: radial-gradient(ellipse at 0 0,#d6dde6,transparent 70%),#e7e9eb; border-color: #c2cbd6; }
 .collection-game-card[data-game="gomoku"] { background: radial-gradient(ellipse at 0 0,#d7dfcb,transparent 70%),#e9ecdf; border-color: #c3ceb5; }
 .collection-game-card { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto auto; gap: 16px; align-items: center; min-height: 0; border-radius: 18px; padding: 22px; }
 .collection-game-card[data-game="junqi"] { border-color: #c5d0cd; background: radial-gradient(ellipse at 0 0,#dce5e3,transparent 70%),#e9ede5; }
