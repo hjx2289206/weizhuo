@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Card, StoneGameFields } from '../../shared/protocol'
 import { GO_SIZES, gomokuLine, playGo, scoreGo, stoneCoordinate, stoneGroup, stonePositionKey, stoneSideName, validStonePoint, type StoneBoard, type StoneKind, type StoneMove, type StoneSide } from '../../shared/stones'
 import { BoardUndo } from './boardUndo'
-import type { GameCommandType, GameResult, RoomGame } from './types'
+import type { GameCommandOptions, GameCommandType, GameResult, RoomGame } from './types'
 
 /** Trusted local diagrams for tests/tutorials only. Room payloads never reach this constructor. */
 export interface StoneSetup { size?: number; board?: StoneBoard; turn?: StoneSide; history?: string[] }
@@ -54,13 +54,13 @@ export class StoneGame implements RoomGame {
     this.phase = 'playing'
     if (this.kind === 'go') this.saveGoPosition(null)
   }
-  command(seat: number, type: GameCommandType, payload: Record<string, unknown>): GameResult {
+  command(seat: number, type: GameCommandType, payload: Record<string, unknown>, options?: GameCommandOptions): GameResult {
     const fail = (message: string): GameResult => ({ ok: false, message })
     if (seat !== 0 && seat !== 1) return fail('只有入座玩家可以落子')
     if (this.phase !== 'playing') return fail('请先准备并开始对局')
     if (type === 'stoneUndo') {
       if (this.stage === 'scoring') return fail('确认死子期间不能悔棋')
-      return this.undo.command(seat, payload.action, this.moves, target => this.rewind(target), false)
+      return this.undo.command(seat, payload.action, this.moves, target => this.rewind(target), options?.unlimitedUndo === true)
     }
     if (type === 'stoneResign') { this.finish(seat === 0 ? 1 : 0, `${stoneSideName(seat)}认输`); return { ok: true } }
     if (type === 'stoneScore') {

@@ -9,7 +9,7 @@ const state = computed(() => props.game.state.value)
 const ai = computed(() => state.value?.boardAi)
 const open = ref(false), difficulty = ref<BoardAiDifficulty>('normal'), side = ref<0 | 1>(1), error = ref(''), saving = ref(false)
 const selected = computed(() => ai.value?.levels.find(item => item.id === difficulty.value))
-const sideName = (n: number) => n === 1 ? '黑方' : state.value?.game === 'chess' ? '白方' : '红方'
+const sideName = (n: number) => state.value?.game === 'gomoku' ? n === 0 ? '黑' : '白' : n === 1 ? '黑方' : state.value?.game === 'chess' ? '白方' : '红方'
 function show() { difficulty.value=ai.value?.config?.difficulty??'normal'; side.value=state.value?.roomMode==='phone'?(state.value.selfSeat===0?1:0):ai.value?.config?.side??1; error.value='';open.value=true }
 watch(() => props.game.boardAiSetupRequested.value, value => { if(value&&state.value?.isHost&&state.value.phase==='lobby'){props.game.boardAiSetupRequested.value=false;show()} },{immediate:true})
 async function configure(enabled:boolean) { if(saving.value)return;saving.value=true;error.value='';try{await props.game.configureBoardAi(enabled,side.value,difficulty.value);open.value=false}catch(e){error.value=e instanceof Error?e.message:'无法设置人机对弈'}finally{saving.value=false} }
@@ -22,8 +22,8 @@ async function retry() { try{await props.game.retryBoardAi()}catch{} }
     <DialogShell v-if="open" title="人机对弈" class="board-ai-dialog" @close="!saving && (open = false)">
       <p class="board-ai-lead">选好难度，与电脑下一局。</p>
       <label class="board-ai-field">难度<select v-model="difficulty" :disabled="saving"><option v-for="level in ai.levels" :key="level.id" :value="level.id" :disabled="!level.available">{{ level.label }}{{ level.available ? '' : '（暂不可用）' }}</option></select></label>
-      <label v-if="state.roomMode === 'tablet'" class="board-ai-field">你执<select :value="1-side" :disabled="saving" @change="side = Number(($event.target as HTMLSelectElement).value) === 0 ? 1 : 0"><option :value="0">{{ sideName(0) }} · 先手</option><option :value="1">黑方 · 后手</option></select></label>
-      <p v-else class="board-ai-note">你执{{ sideName(state.selfSeat ?? 0) }}，电脑执{{ sideName(side) }}。已有真人的座位不会被替换。</p>
+      <label v-if="state.roomMode === 'tablet'" class="board-ai-field">{{ state.game === 'gomoku' ? '执子' : '你执' }}<select :value="1-side" :disabled="saving" @change="side = Number(($event.target as HTMLSelectElement).value) === 0 ? 1 : 0"><option :value="0">{{ state.game === 'gomoku' ? '执黑（先手）' : sideName(0) + ' · 先手' }}</option><option :value="1">{{ state.game === 'gomoku' ? '执白' : '黑方 · 后手' }}</option></select></label>
+      <p v-else class="board-ai-note">你执{{ sideName(state.selfSeat ?? 0) }}{{ state.game === 'gomoku' && state.selfSeat === 0 ? '（先手）' : '' }}，电脑执{{ sideName(side) }}。已有真人的座位不会被替换。</p>
       <p class="board-ai-note">五档为本游戏内的相对难度；人机对弈保留棋规自动和棋，不提供协议和棋。</p>
       <p v-if="!selected?.available" class="board-ai-error" role="status">{{ selected?.message || '这个难度的电脑暂不可用' }}</p>
       <p v-if="error" class="board-ai-error" role="alert">{{ error }}</p>

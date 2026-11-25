@@ -36,6 +36,7 @@ const phaseTip = computed(() => {
   const s = props.game.state.value
   if (!s) return '选择游戏查看玩法；扫码加入时先确认房间和座位。'
   if (s.game === 'go') return '先点空交叉点，再确认落子。双方连续停一手后确认死子，双方同意后才按数子法结算，黑贴 7.5 点；有争议可以继续下棋。'
+  if (s.game === 'gomoku' && s.boardAi?.config) return '先点空交叉点，再确认落子。等电脑走完后可悔棋，退回到你上一手之前。'
   if (s.game === 'gomoku') return '15 路无禁手五子棋，黑先白后。先点空交叉点再确认；横、竖、斜先连成五子或以上获胜。'
   if (s.boardAi?.config) return '点自己的棋，再点绿色落点；电脑会自动应手。电脑思考时不能替它行棋，异常时可重试。难度在开局前设置。'
   if (s.game === 'chess') return '白方先行；点当前一方的棋，再点绿色落点。兵到底线需选择升变；将死获胜，逼和算和棋。'

@@ -2,6 +2,7 @@
 import BrandMark from '../components/BrandMark.vue'
 import { computed, nextTick, ref } from 'vue'
 import { GAME_DEFINITIONS, GAME_KINDS, supportsRoomMode, isBoardGame, isStoneGame } from '../../shared/gameCatalog'
+import { isBoardAiGame, type BoardAiGame } from '../../shared/boardAi'
 import type { GameKind, RoomMode } from '../../shared/protocol'
 import type { GameController } from '../useGame'
 import GameCover from '../components/GameCover.vue'
@@ -53,7 +54,7 @@ const notice = ref('')
 const practiceTier = ref<'strong' | 'easy'>('easy')
 const joinExpanded = ref(!!roomCode.value)
 
-function practiceBoard(game: 'chess' | 'xiangqi'): void {
+function practiceBoard(game: BoardAiGame): void {
   clearNameNotice(); run(() => props.game.createBoardPractice(game, nickname.value.trim() || '我'))
 }
 
@@ -159,7 +160,7 @@ const requestStatus = computed(() => {
         <div class="collection-games" :data-category="activeCategory.key" :style="{ '--game-count': visibleGames.length }">
           <article v-for="entry in visibleGames" :key="entry" class="collection-game-card" :data-game="entry">
             <div class="collection-game-cover"><GameCover :game="entry" /></div>
-            <div class="game-card-copy"><div class="game-card-heading"><h2 class="panel-title">{{ GAME_DEFINITIONS[entry].name }}</h2><GameTutorialButton v-if="isStoneGame(entry)" :game="entry" /><button v-if="entry === 'chess' || entry === 'xiangqi'" class="board-practice-entry" :disabled="busy" :aria-label="`${GAME_DEFINITIONS[entry].name}人机对弈`" @click="practiceBoard(entry)">人机对弈<AppIcon name="right" /></button></div><p class="collection-game-note">{{ GAME_NOTES[entry] }}</p></div>
+            <div class="game-card-copy"><div class="game-card-heading"><h2 class="panel-title">{{ GAME_DEFINITIONS[entry].name }}</h2><GameTutorialButton v-if="isStoneGame(entry)" :game="entry" /><button v-if="isBoardAiGame(entry)" class="board-practice-entry" :disabled="busy" :aria-label="`${GAME_DEFINITIONS[entry].name}人机对弈`" @click="practiceBoard(entry)">人机对弈<AppIcon name="right" /></button></div><p class="collection-game-note">{{ GAME_NOTES[entry] }}</p></div>
             <div class="collection-actions">
               <button v-if="supportsRoomMode(entry, 'tablet')" class="button primary" :disabled="busy" @click="create(entry, 'tablet')"><AppIcon name="table" />{{ isBoardGame(entry) ? '平板双人同屏' : '平板开一桌' }}</button>
               <button class="button primary" :disabled="busy" @click="create(entry, 'phone')"><AppIcon :name="isBoardGame(entry) ? 'users' : 'phone'" />{{ isBoardGame(entry) ? '联机对弈' : '手机开一桌' }}</button>

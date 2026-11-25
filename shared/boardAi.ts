@@ -1,5 +1,9 @@
+export const BOARD_AI_GAMES = ['chess', 'xiangqi', 'gomoku'] as const
+export type BoardAiGame = typeof BOARD_AI_GAMES[number]
+export type UciBoardAiGame = Exclude<BoardAiGame, 'gomoku'>
+export const isBoardAiGame = (value: unknown): value is BoardAiGame => BOARD_AI_GAMES.some(game => game === value)
+
 /** Product difficulty names are relative presets, not measured human Elo ratings. */
-export type BoardAiGame = 'chess' | 'xiangqi'
 export type BoardAiDifficulty = 'beginner' | 'easy' | 'normal' | 'hard' | 'challenge'
 export const BOARD_AI_DIFFICULTIES = [
   { id: 'beginner', label: '入门' }, { id: 'easy', label: '简单' }, { id: 'normal', label: '普通' },

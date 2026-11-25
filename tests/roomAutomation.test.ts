@@ -439,7 +439,7 @@ test('offline bot seats bid and play on while a human keeps the table open', asy
   room.dispose();
 });
 
-test('a progressing managed round is not expirable while a bot-only lobby still is', async () => {
+test('a progressing managed round is not expirable while a bot-only lobby still is', async (t) => {
   const policy = new ScriptedPolicy();
   const table = setupTablet(policy, [], 'AT6');
   const { room, host } = table;
@@ -456,9 +456,10 @@ test('a progressing managed round is not expirable while a bot-only lobby still 
   botLobby.bindHost(lobbyHost, 'create-at7');
   expectAccepted(botLobby, lobbyHost, 'seats', { positions: PLACED.map((p) => ({ ...p })) }, 'seats-at7');
   expectAccepted(botLobby, lobbyHost, 'addBot', { seatId: 0 }, 'at7-bot');
-  botLobby.detach(lobbyHost);
-  assert.equal(botLobby.empty, true, 'a bot-only lobby is abandoned');
   const emptyAt = Date.now();
+  const clock = t.mock.method(Date, 'now', () => emptyAt);
+  try { botLobby.detach(lobbyHost); } finally { clock.mock.restore(); }
+  assert.equal(botLobby.empty, true, 'a bot-only lobby is abandoned');
   assert.equal(botLobby.isExpired(emptyAt + ROOM_TTL_MS - 1, ROOM_TTL_MS), false);
   assert.equal(botLobby.isExpired(emptyAt + ROOM_TTL_MS, ROOM_TTL_MS), true);
   botLobby.dispose();
