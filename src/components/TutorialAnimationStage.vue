@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { XIANGQI_FULL_BOX, xiangqiFocusBox, type XiangqiBox } from '../../shared/xiangqiGeometry'
+import { isStoneGame } from '../../shared/gameCatalog'
 import { xiangqiPositionKey, xiangqiSideName } from '../../shared/xiangqi'
 import type { XiangqiPlayback } from '../tutorials/xiangqiMotion'
 import XiangqiBoard from './XiangqiBoard.vue'
@@ -131,9 +132,9 @@ function role(n: number): string { const state = snapshot.value; return state.ga
 </script>
 
 <template>
-  <div class="tutorial-animation-stage" :class="{ 'is-chess': chess || xiangqi || snapshot.game === 'chess' || snapshot.game === 'go' || snapshot.game === 'gomoku', 'is-rejected': rejected }" :data-clip-id="clip.id" :data-beat="pos.frameIndex" :data-fraction="pos.fraction.toFixed(3)">
+  <div class="tutorial-animation-stage" :class="{ 'is-chess': chess || xiangqi || snapshot.game === 'chess' || isStoneGame(snapshot.game), 'is-rejected': rejected }" :data-clip-id="clip.id" :data-beat="pos.frameIndex" :data-fraction="pos.fraction.toFixed(3)">
     <ChessTutorialStage v-if="snapshot.game === 'chess'" :clip="clip" :elapsed="elapsed" :reduced="reduced" :opposed="opposed" />
-    <StoneTutorialStage v-else-if="snapshot.game === 'go' || snapshot.game === 'gomoku'" :clip="clip" :elapsed="elapsed" :reduced="reduced" />
+    <StoneTutorialStage v-else-if="isStoneGame(snapshot.game)" :clip="clip" :elapsed="elapsed" :reduced="reduced" />
     <template v-else-if="xiangqi">
       <div class="clip-chess-context"><span>{{ opposed ? '平板同屏 · 双方棋字各朝自己' : '手机视角 · 所有棋字朝下' }}</span><span>{{ xqCamera === '0 0 500 540' ? '棋盘概览' : '关键区域放大' }}</span></div>
       <div class="clip-chess-viewport" inert><XiangqiBoard :board="xiangqi.xiangqi.board" :side="0" :selected="null" :targets="clip.tags.includes('board') ? [4,85] : []" disabled :opposed="opposed" :last="xiangqi.xiangqi.moves.at(-1)" :checked="xiangqi.xiangqi.check" :camera="xqCamera" :playback="xqMotion" /></div>

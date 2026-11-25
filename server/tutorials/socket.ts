@@ -1,4 +1,5 @@
 import type { WebSocket } from 'ws'
+import { isGameKind } from '../../shared/gameCatalog'
 import { TUTORIAL_VERSION, type TeachingRequest, type TeachingResponse } from '../../shared/tutorialProtocol'
 import { TeachingSession } from './session'
 
@@ -23,7 +24,7 @@ export function connectTutorialSocket(socket: WebSocket): void {
       if (request!.type === 'exit') { session = null; socket.close(1000, 'tutorial exit'); return }
       if (request!.type === 'start') {
         const game = request!.game
-        if (game !== 'doudizhu' && game !== 'guandan' && game !== 'junqi' && game !== 'xiangqi' && game !== 'chess' && game !== 'go' && game !== 'gomoku') throw new Error('未知的教学游戏')
+        if (!isGameKind(game)) throw new Error('未知的教学游戏')
         if (request.level !== undefined && request.level !== 'basic' && request.level !== 'advanced') throw new Error('未知的教程分区')
         const resume = request!.courseVersion === TUTORIAL_VERSION && typeof request!.clipId === 'string' ? request!.clipId : undefined
         session = new TeachingSession(game, resume, request.level); send(session.start(request!.id)); return

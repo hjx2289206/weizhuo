@@ -15,7 +15,7 @@ import { guandanCollector } from './collect/collector';
 import { detectInAppBrowser } from '../shared/inAppBrowser';
 import { getNetworkUrls } from './network';
 import { boardAiPolicy } from './bots/boardAi';
-import { supportsRoomMode } from '../shared/gameCatalog';
+import { isGameKind, supportsRoomMode } from '../shared/gameCatalog';
 import { connectTutorialSocket } from './tutorials/socket';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -108,7 +108,7 @@ function route(peer: Connection, type: string, payload: Record<string, unknown>,
     }
     const roomMode: RoomMode = payload.roomMode === 'phone' ? 'phone' : 'tablet';
     const rawGame = payload.game;
-    if (rawGame !== 'doudizhu' && rawGame !== 'guandan' && rawGame !== 'junqi' && rawGame !== 'xiangqi' && rawGame !== 'chess' && rawGame !== 'go' && rawGame !== 'gomoku') {
+    if (!isGameKind(rawGame)) {
       peer.send({ type: 'error', id: id || undefined, message: '未知的游戏类型' });
       return;
     }

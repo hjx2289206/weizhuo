@@ -1,4 +1,5 @@
 import { computed, onScopeDispose, ref, shallowRef } from 'vue'
+import { isBoardGame } from '../../shared/gameCatalog'
 import type { GameKind } from '../../shared/protocol'
 import { TUTORIAL_VERSION, type TeachingLevel, type TeachingRequest, type TeachingResponse, type TeachingState } from '../../shared/tutorialProtocol'
 import { clipDuration, clipPosition } from './motion'
@@ -8,8 +9,8 @@ export function useTeachingGame(game: GameKind, level: TeachingLevel = 'basic') 
   const data = shallowRef<TeachingState | null>(null), connected = ref(false), loading = ref(true), error = ref(''), notice = ref('')
   const elapsed = ref(0), paused = ref(false), watched = ref<string[]>([])
   const portrait = ref(innerHeight > innerWidth)
-  const needsLandscape = computed(() => (game === 'doudizhu' || game === 'guandan') && portrait.value)
-  const needsPortrait = computed(() => (game === 'xiangqi' || game === 'chess' || game === 'go' || game === 'gomoku') && !portrait.value)
+  const needsLandscape = computed(() => !isBoardGame(game) && portrait.value)
+  const needsPortrait = computed(() => isBoardGame(game) && game !== 'junqi' && !portrait.value)
   const needsRotation = computed(() => needsLandscape.value || needsPortrait.value)
   const media = matchMedia('(prefers-reduced-motion: reduce)'), reduced = ref(media.matches)
   let socket: WebSocket | null = null, disposed = false, sequence = 0, connection = 0, reconnect: ReturnType<typeof setTimeout> | undefined

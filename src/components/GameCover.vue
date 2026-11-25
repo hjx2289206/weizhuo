@@ -3,6 +3,7 @@ import ChessToken from './ChessToken.vue'
 import XiangqiToken from './XiangqiToken.vue'
 import { useId } from 'vue'
 import type { GameKind } from '../../shared/protocol'
+import { isStoneGame } from '../../shared/gameCatalog'
 
 // Decorative printed cards, not a dealt hand or a preview of any player's cards.
 defineProps<{ game: GameKind }>()
@@ -54,7 +55,7 @@ const artworkId = `collection-cover-${useId()}`
     </defs>
 
     <ellipse cx="185" cy="187" rx="130" ry="14" fill="#254a37" opacity=".065" />
-    <g v-if="game === 'go' || game === 'gomoku'" transform="translate(94 14) rotate(-7 88 88)">
+    <g v-if="isStoneGame(game)" transform="translate(94 14) rotate(-7 88 88)">
       <rect width="176" height="176" rx="9" fill="#ead2a0" stroke="#baa16f" />
       <path v-for="i in 9" :key="i" :d="`M16 ${16+(i-1)*18}H160M${16+(i-1)*18} 16V160`" fill="none" stroke="#aa9060" stroke-width=".7" />
       <circle cx="88" cy="88" r="2" fill="#937e52" />
