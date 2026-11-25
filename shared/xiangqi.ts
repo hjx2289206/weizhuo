@@ -1,15 +1,27 @@
 /** Public, deterministic Chinese-chess rules. Red is seat 0 and moves toward smaller rows. */
+import type { BoardUndoView } from './boardUndo'
+
 export type XiangqiSide = 0 | 1
 export type XiangqiRank = 'general' | 'advisor' | 'elephant' | 'horse' | 'rook' | 'cannon' | 'soldier'
 export interface XiangqiPiece { id: string; side: XiangqiSide; rank: XiangqiRank }
 export type XiangqiBoard = (XiangqiPiece | null)[]
 export interface XiangqiMove { ply: number; side: XiangqiSide; from: number; to: number; piece: XiangqiPiece; captured: XiangqiPiece | null; check: boolean; notation: string }
-export interface XiangqiView { round: number; roundId: string; board: XiangqiBoard; moves: XiangqiMove[]; check: XiangqiSide | null; winner: XiangqiSide | null; draw: boolean; reason: string; drawOffer: XiangqiSide | null; quietPlies: number }
+export interface XiangqiView extends BoardUndoView { round: number; roundId: string; board: XiangqiBoard; moves: XiangqiMove[]; check: XiangqiSide | null; winner: XiangqiSide | null; draw: boolean; reason: string; drawOffer: XiangqiSide | null; quietPlies: number }
 export const XIANGQI_NAMES: Record<XiangqiRank, readonly [string, string]> = { general: ['帅', '将'], advisor: ['仕', '士'], elephant: ['相', '象'], horse: ['马', '马'], rook: ['车', '车'], cannon: ['炮', '砲'], soldier: ['兵', '卒'] }
 export const xiangqiSideName = (side: number) => side === 0 ? '红方' : '黑方'
 export const xiangqiName = (piece: XiangqiPiece) => XIANGQI_NAMES[piece.rank][piece.side]
 export const validXiangqiPoint = (point: unknown): point is number => typeof point === 'number' && Number.isInteger(point) && point >= 0 && point < 90
 export const xiangqiCoordinate = (point: number) => `${'ABCDEFGHI'[point % 9]}${10 - Math.floor(point / 9)}`
+
+export function rewindXiangqiBoard(board: readonly (XiangqiPiece | null)[], moves: readonly XiangqiMove[]): XiangqiBoard {
+  const restored = [...board]
+  for (let index = moves.length - 1; index >= 0; index--) {
+    const { from, to, piece, captured } = moves[index]!
+    restored[from] = { ...piece }
+    restored[to] = captured ? { ...captured } : null
+  }
+  return restored
+}
 export function initialXiangqiBoard(): XiangqiBoard {
   const board: XiangqiBoard = Array(90).fill(null)
   const back: XiangqiRank[] = ['rook', 'horse', 'elephant', 'advisor', 'general', 'advisor', 'elephant', 'horse', 'rook']

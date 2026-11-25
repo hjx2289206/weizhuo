@@ -312,12 +312,12 @@ export type StoneSnapshot = RoomSnapshotFields & StoneGameFields;
 export type Snapshot = DoudizhuSnapshot | GuandanSnapshot | JunqiSnapshot | XiangqiSnapshot | ChessSnapshot | StoneSnapshot;
 
 export type ClientMessageType =
-  | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneSetup'
+  | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneSetup' | 'stoneUndo'
   | 'boardAi' | 'boardAiRetry'
-  | 'chessMove' | 'chessResign' | 'chessDraw'
+  | 'chessMove' | 'chessResign' | 'chessDraw' | 'chessUndo'
   | 'xiangqiMove'
   | 'xiangqiResign'
-  | 'xiangqiDraw'
+  | 'xiangqiDraw' | 'xiangqiUndo'
   | 'junqiMode'
   | 'junqiSetup'
   | 'junqiMove'
@@ -351,6 +351,7 @@ export type ClientMessageType =
   | 'dissolve';
 
 export type ClientPayload =
+  | { action: import('./boardUndo').BoardUndoAction }
   | { point: number }
   | { size: number }
   | { action: 'mark' | 'confirm' | 'resume'; point?: number; side?: 0 | 1; revision?: number; roundId?: string }

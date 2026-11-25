@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { Chess } from 'chess.js'
 import type { Card, ChessGameFields } from '../../shared/protocol'
-import { chessBoard, chessCoordinate, chessIndex, chessSideName, validChessPoint, CHESS_PROMOTIONS, type ChessBoard, type ChessMove, type ChessPromotion, type ChessSide } from '../../shared/chess'
-import type { GameCommandType, GameResult, RoomGame } from './types'
+import { chessBoard, chessCoordinate, chessSideName, validChessPoint, CHESS_PROMOTIONS, type ChessBoard, type ChessMove, type ChessPromotion, type ChessSide } from '../../shared/chess'
+import { BoardUndo } from './boardUndo'
+import type { GameCommandOptions, GameCommandType, GameResult, RoomGame } from './types'
 
 export class ChessGame implements RoomGame {
   readonly kind = 'chess' as const
@@ -18,21 +19,27 @@ export class ChessGame implements RoomGame {
   private draw = false
   private reason = ''
   private drawOffer: ChessSide | null = null
-  private lastOffer = [-1, -1]
+  private lastOffer: [number[], number[]] = [[], []]
+  private undo = new BoardUndo()
   /** Trusted FEN for server-authored tutorials/tests; never populated by room payloads. */
   constructor(private readonly initialFen?: string) { this.engine = new Chess(initialFen); this.startFen = this.engine.fen(); this.board = chessBoard(this.engine) }
   private side(): ChessSide { return this.engine.turn() === 'w' ? 0 : 1 }
   start(): void { if (this.phase === 'lobby') { this.phase = 'playing'; this.adjudicate() } }
-  command(seat: number, type: GameCommandType, payload: Record<string, unknown>): GameResult {
+  command(seat: number, type: GameCommandType, payload: Record<string, unknown>, options?: GameCommandOptions): GameResult {
     const fail = (message: string): GameResult => ({ ok: false, message })
     if (seat !== 0 && seat !== 1) return fail('只有入座玩家可以行棋')
     if (this.phase !== 'playing') return fail('请先准备并开始对局')
+    if (type === 'chessUndo') {
+      if (this.drawOffer !== null) return fail('请先处理和棋请求')
+      return this.undo.command(seat, payload.action, this.moves, target => this.rewind(target), options?.unlimitedUndo === true)
+    }
     if (type === 'chessResign') { this.finish(seat === 0 ? 1 : 0, `${chessSideName(seat)}认输`); return { ok: true } }
     if (type === 'chessDraw') {
       if (payload.action === 'offer') {
+        if (this.undo.undoOffer !== null) return fail('已有悔棋请求，请先处理')
         if (this.drawOffer !== null) return fail('已有和棋请求，请先处理')
-        if (this.lastOffer[seat] === this.moves.length) return fail('本步已经提过和棋，请继续行棋')
-        this.drawOffer = seat; this.lastOffer[seat] = this.moves.length; return { ok: true }
+        if (this.lastOffer[seat].at(-1) === this.moves.length) return fail('本步已经提过和棋，请继续行棋')
+        this.drawOffer = seat; this.lastOffer[seat].push(this.moves.length); return { ok: true }
       }
       if (payload.action !== 'accept' && payload.action !== 'decline') return fail('和棋操作无效')
       if (this.drawOffer === null || this.drawOffer === seat) return fail('没有对方发来的和棋请求')
@@ -62,8 +69,23 @@ export class ChessGame implements RoomGame {
     if (castle) { this.board[castle.from] = null; this.board[castle.to] = rook }
     this.moves.push({ ply: this.moves.length + 1, side: seat, from, to, piece: { ...piece }, captured: captured ? { ...captured } : null, capturePoint,
       check: this.engine.isCheck(), notation: legal.san, ...(promoting ? { promotion: promotion as ChessPromotion } : {}), ...(castle && rook ? { castle: { ...castle, piece: { ...rook } } } : {}) })
-    this.drawOffer = null; this.adjudicate()
+    this.drawOffer = null; this.undo.undoOffer = null; this.adjudicate()
     return { ok: true }
+  }
+  private rewind(target: number): void {
+    // chess.js restores the rules position. Rebuild the display board with its original piece IDs.
+    for (const move of this.moves.splice(target).reverse()) {
+      this.engine.undo()
+      this.board[move.to] = null
+      this.board[move.from] = move.piece
+      if (move.capturePoint !== null) this.board[move.capturePoint] = move.captured
+      if (move.castle) {
+        this.board[move.castle.to] = null
+        this.board[move.castle.from] = move.castle.piece
+      }
+    }
+    this.drawOffer = null
+    this.lastOffer = [this.lastOffer[0].filter(ply => ply <= target), this.lastOffer[1].filter(ply => ply <= target)]
   }
   private adjudicate(): void {
     if (this.engine.isCheckmate()) this.finish(this.side() === 0 ? 1 : 0, `${chessSideName(this.side())}被将死`)
@@ -73,11 +95,11 @@ export class ChessGame implements RoomGame {
     else if (this.engine.isThreefoldRepetition()) this.finish(null, '同一局面三次重复，自动和棋')
     else if (this.engine.isDrawByFiftyMoves()) this.finish(null, '连续 50 回合无吃子且无兵移动，自动和棋')
   }
-  private finish(winner: ChessSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason; this.drawOffer = null }
+  private finish(winner: ChessSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason; this.drawOffer = null; this.undo.undoOffer = null }
   view(): ChessGameFields {
     const checked = this.engine.isCheck() ? this.side() : null
     return { game: 'chess', phase: this.phase, turn: this.phase === 'playing' ? this.side() : null, lastPlay: null, tablePlays: [], trickStartIndex: 0,
-      chess: structuredClone({ round: this.round, roundId: this.roundId, startFen: this.startFen, fen: this.engine.fen(), board: this.board, moves: this.moves, check: checked, winner: this.winner, draw: this.draw, reason: this.reason, drawOffer: this.drawOffer, quietPlies: Number(this.engine.fen().split(' ')[4]) }) }
+      chess: structuredClone({ round: this.round, roundId: this.roundId, startFen: this.startFen, fen: this.engine.fen(), board: this.board, moves: this.moves, check: checked, winner: this.winner, draw: this.draw, reason: this.reason, drawOffer: this.drawOffer, quietPlies: Number(this.engine.fen().split(' ')[4]), ...this.undo }) }
   }
   handOf(_seat: number): readonly Card[] { return [] }
   passedAt(_seat: number): boolean { return false }
@@ -87,7 +109,7 @@ export class ChessGame implements RoomGame {
   statusText(self: number | null, name: (seat: number) => string): string { return this.phase === 'finished' ? `${this.draw ? '和棋' : `${name(this.winner!)}获胜`} · ${this.reason}` : `${this.side() === self ? '轮到你行棋' : `等待${name(this.side())}行棋`}${this.engine.isCheck() ? ' · 正在被将军，必须应将' : ''}` }
   restart(): GameResult {
     if (this.phase !== 'finished') return { ok: false, message: '本局结束后才能重新开局' }
-    this.engine = new Chess(this.initialFen); this.board = chessBoard(this.engine); this.round++; this.roundId = randomUUID(); this.phase = 'lobby'; this.moves = []; this.winner = null; this.draw = false; this.reason = ''; this.drawOffer = null; this.lastOffer = [-1, -1]
+    this.engine = new Chess(this.initialFen); this.board = chessBoard(this.engine); this.round++; this.roundId = randomUUID(); this.phase = 'lobby'; this.moves = []; this.winner = null; this.draw = false; this.reason = ''; this.drawOffer = null; this.lastOffer = [[], []]; this.undo = new BoardUndo()
     return { ok: true }
   }
 }

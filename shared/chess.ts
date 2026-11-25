@@ -1,4 +1,5 @@
 import { Chess, type Square, type PieceSymbol } from 'chess.js'
+import type { BoardUndoView } from './boardUndo'
 
 /** a8 = 0, h1 = 63. White is seat 0. The server owns the complete move history. */
 export type ChessSide = 0 | 1
@@ -11,7 +12,7 @@ export interface ChessMove {
   captured: ChessPiece | null; capturePoint: number | null; check: boolean; notation: string
   promotion?: ChessPromotion; castle?: { from: number; to: number; piece: ChessPiece }
 }
-export interface ChessView {
+export interface ChessView extends BoardUndoView {
   round: number; roundId: string; startFen: string; fen: string; board: ChessBoard; moves: ChessMove[]
   check: ChessSide | null; winner: ChessSide | null; draw: boolean; reason: string
   drawOffer: ChessSide | null; quietPlies: number

@@ -1,5 +1,5 @@
 // Shared vector artwork for UI controls and exported result cards.
-export type IconName = 'settings' | 'sun' | 'book' | 'history' | 'trophy' | 'download' | 'close' | 'left' | 'right' | 'play' | 'home' | 'fullscreen' | 'restore' | 'rotate' | 'chat' | 'crown' | 'sort' | 'counter' | 'share' | 'users' | 'check' | 'swap' | 'trash' | 'phone' | 'table' | 'bolt' | 'volume' | 'muted' | 'user' | 'cards' | 'clock' | 'plus' | 'minus' | 'copy'
+export type IconName = 'settings' | 'sun' | 'book' | 'history' | 'trophy' | 'download' | 'close' | 'left' | 'right' | 'play' | 'home' | 'fullscreen' | 'restore' | 'rotate' | 'undo' | 'chat' | 'crown' | 'sort' | 'counter' | 'share' | 'users' | 'check' | 'swap' | 'trash' | 'phone' | 'table' | 'bolt' | 'volume' | 'muted' | 'user' | 'cards' | 'clock' | 'plus' | 'minus' | 'copy'
 export const ICON_PATHS: Record<IconName, string[]> = {
   // Eight identical teeth, rotated around the same centre as the circular hub.
   settings: ['M9.245 5.348L10.38 4.985L10.514 2.617L13.486 2.617L13.62 4.985L14.755 5.348L15.815 5.894L17.584 4.314L19.686 6.416L18.106 8.185L18.652 9.245L19.015 10.38L21.383 10.514L21.383 13.486L19.015 13.62L18.652 14.755L18.106 15.815L19.686 17.584L17.584 19.686L15.815 18.106L14.755 18.652L13.62 19.015L13.486 21.383L10.514 21.383L10.38 19.015L9.245 18.652L8.185 18.106L6.416 19.686L4.314 17.584L5.894 15.815L5.348 14.755L4.985 13.62L2.617 13.486L2.617 10.514L4.985 10.38L5.348 9.245L5.894 8.185L4.314 6.416L6.416 4.314L8.185 5.894Z', 'M15.2 12a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0Z'],
@@ -14,6 +14,7 @@ export const ICON_PATHS: Record<IconName, string[]> = {
   fullscreen: ['M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6'],
   restore: ['M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6'],
   rotate: ['M5 8.5a9 9 0 0 1 15-3M20 2.5v3h-3', 'm9 8.5 8 8-5 5-8-8 5-5Z'],
+  undo: ['M9 3 4 8l5 5M4 8h10a6 6 0 0 1 0 12h-3'],
   chat: ['M21 11a8 8 0 0 1-8 8H8l-5 2V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v4Z', 'M7 8h10M7 12h7'],
   crown: ['M3 7l5 4 4-7 4 7 5-4-2 13H5L3 7ZM5 17h14'],
   sort: ['M7 3v18m-4-4 4 4 4-4M17 21V3m-4 4 4-4 4 4'],

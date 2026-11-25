@@ -5,6 +5,7 @@ import { chessCoordinate, chessDestinations, chessName, chessSideName, CHESS_PRO
 import ChessBoard from '../components/ChessBoard.vue'
 import ChessToken from '../components/ChessToken.vue'
 import BoardAiControl from '../components/BoardAiControl.vue'
+import BoardUndoControl from '../components/BoardUndoControl.vue'
 import { boardAiLabel } from '../../shared/boardAi'
 import BrandMark from '../components/BrandMark.vue'
 import GameTools from '../components/GameTools.vue'
@@ -43,12 +44,13 @@ const canStart = computed(() => s.value?.seats.every(seat => seat.name && seat.c
 const last = computed(() => s.value?.chess.moves.at(-1) ?? null)
 const lastSummary = computed(() => {
   const move = last.value
-  if (!move) return '对局尚未开始'
+  if (!move) return '本局暂无着法'
   const tags = [move.captured ? `吃${chessName(move.captured)}` : '', move.castle ? '易位' : '', move.promotion ? `升变${CHESS_NAMES[move.promotion]}` : '', move.check ? '将军' : ''].filter(Boolean)
   return `第 ${move.ply} 手 · ${chessSideName(move.side)} ${chessCoordinate(move.from)}→${chessCoordinate(move.to)}${tags.length ? ` · ${tags.join(' · ')}` : ''}`
 })
 const moves = computed(() => (s.value?.chess.moves ?? []).slice(historyPage.value * 6, historyPage.value * 6 + 6))
 watch(() => [s.value?.version, editable.value], () => { selected.value = null; promotion.value = null })
+watch(() => s.value?.chess.moves.length ?? 0, length => { historyPage.value = Math.min(historyPage.value, Math.max(0, Math.ceil(length / 6) - 1)) })
 watch(() => s.value?.chess.roundId, () => { historyPage.value = 0; historyOpen.value = false; resignOpen.value = false })
 async function run(action: () => Promise<void> | void): Promise<void> { if (localBusy.value) return; localBusy.value = true; try { await action() } catch (error) { props.game.error.value = error instanceof Error ? error.message : '操作失败' } finally { localBusy.value = false } }
 function select(point: number): void {
@@ -70,9 +72,30 @@ async function copy(seat: number): Promise<void> { try { await navigator.clipboa
 
         <div class="chess-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.phase === 'playing' && s.turn === seat.id, 'is-white': seat.id === 0 }"><svg class="chess-seat-icon" viewBox="-30 -30 60 60" aria-hidden="true"><ChessToken :piece="{ id: `seat-${seat.id}`, side: seat.id as ChessSide, rank: 'k' }" :facing-away="shared && !computer && seat.id === 1" /></svg><div><strong>{{ seat.name ?? '等待朋友' }}<small v-if="side === seat.id">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? s.boardAi?.thinking ? '正在思考' : '自动行棋' : shared ? computer ? '玩家' : '平板同屏' : seat.name ? seat.connected ? s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : '在线' : '等待重连' : `${chessSideName(seat.id)} · 空位` }}</span></div></article></div>
         <div v-if="s.phase === 'lobby'" class="chess-actions"><button v-if="!shared && side !== null" class="button" :class="me?.ready ? 'secondary' : 'primary'" :disabled="locked" @click="run(game.ready)">{{ me?.ready ? '取消准备' : '我准备好了' }}</button><button v-if="s.isHost" class="button primary" :disabled="locked || !canStart" @click="run(game.start)">开始对弈</button></div>
-        <div v-else-if="s.phase === 'playing' && computer" class="chess-actions"><button class="button secondary" :disabled="locked" @click="resignSide = humanSide!; resignOpen = true">认输</button></div>
-        <div v-else-if="s.phase === 'playing' && shared" class="chess-actions"><button class="button secondary" :disabled="locked" @click="drawOpen = true">双方和棋</button><button class="button secondary" :disabled="locked" @click="resignSide = 0; resignOpen = true">白方认输</button><button class="button secondary" :disabled="locked" @click="resignSide = 1; resignOpen = true">黑方认输</button></div>
-        <div v-else-if="s.phase === 'playing' && side !== null" class="chess-actions"><template v-if="s.chess.drawOffer !== null && s.chess.drawOffer !== side"><span class="chess-offer">对方想和棋，是否同意？</span><button class="button secondary" :disabled="locked" @click="run(() => game.chessDraw('decline'))">继续下棋</button><button class="button primary" :disabled="locked" @click="run(() => game.chessDraw('accept'))">同意和棋</button></template><template v-else><button class="button secondary" :disabled="locked || s.chess.drawOffer !== null" @click="run(() => game.chessDraw('offer'))">{{ s.chess.drawOffer === side ? '等待对方同意' : '提议和棋' }}</button><button class="button secondary" :disabled="locked" @click="resignSide = side as ChessSide; resignOpen = true">认输</button></template></div>
+        <div v-else-if="s.phase === 'playing' && (shared || side !== null)" class="chess-actions">
+          <button v-if="computer" class="button secondary" :disabled="locked" @click="resignSide = humanSide!; resignOpen = true">认输</button>
+          <template v-else-if="shared">
+            <button class="button secondary" :disabled="locked" @click="drawOpen = true">双方和棋</button>
+            <button class="button secondary" :disabled="locked" @click="resignSide = 0; resignOpen = true">白方认输</button>
+            <button class="button secondary" :disabled="locked" @click="resignSide = 1; resignOpen = true">黑方认输</button>
+          </template>
+          <template v-else-if="s.chess.drawOffer !== null && s.chess.drawOffer !== side">
+            <span class="chess-offer">对方想和棋，是否同意？</span>
+            <button class="button secondary" :disabled="locked" @click="run(() => game.chessDraw('decline'))">继续下棋</button>
+            <button class="button primary" :disabled="locked" @click="run(() => game.chessDraw('accept'))">同意和棋</button>
+          </template>
+          <template v-else>
+            <button v-if="s.chess.undoOffer === null" class="button secondary" :disabled="locked || s.chess.drawOffer !== null" @click="run(() => game.chessDraw('offer'))">{{ s.chess.drawOffer === side ? '等待对方同意' : '提议和棋' }}</button>
+            <button class="button secondary" :disabled="locked" @click="resignSide = side as ChessSide; resignOpen = true">认输</button>
+          </template>
+          <BoardUndoControl
+            v-if="s.chess.drawOffer === null || shared || s.chess.drawOffer === side"
+            :board="s.chess" :side="side === 0 || side === 1 ? side : null" :side-name="chessSideName"
+            :shared="shared" :computer="!!computer" :draw-pending="s.chess.drawOffer !== null"
+            :disabled="locked || !!s.boardAi?.thinking || (shared && !s.isHost)"
+            @action="action => run(() => game.boardUndo(action))"
+          />
+        </div>
         <div v-else-if="s.phase === 'finished'" class="chess-actions"><button v-if="s.isHost" class="button primary" :disabled="locked" @click="run(game.again)">再来一局</button><span v-else class="muted">等房主再开一局</span></div>
         <div class="chess-last" role="status"><span>{{ animating ? '正在行棋' : '上一手' }}</span><strong>{{ lastSummary }}</strong></div>
         <div class="chess-utilities"><button v-if="!shared && !computer" class="tool-button" type="button" @click="inviteOpen = true"><AppIcon name="users" />邀请朋友</button><button class="tool-button" type="button" :disabled="!s.chess.moves.length" @click="historyPage = Math.floor((s!.chess.moves.length - 1) / 6); historyOpen = true"><AppIcon name="history" />棋谱</button><BoardAiControl :game="game" /><HostTools v-if="s.isHost" :phase="s.phase" :room-mode="s.roomMode" :seats="s.seats" :self-seat="side" :busy="locked" @remove-offline="run(game.removeOfflineSeats)" @transfer="seat => run(() => game.transferHost(seat))" @dissolve="run(game.dissolveRoom)" /></div>

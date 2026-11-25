@@ -1,4 +1,6 @@
 /** Black is seat 0. Coordinates are fixed for both viewers: A1 is the upper-left intersection. */
+import type { BoardUndoView } from './boardUndo'
+
 export type StoneSide = 0 | 1
 export type StoneKind = 'go' | 'gomoku'
 export type StoneBoard = (StoneSide | null)[]
@@ -7,7 +9,7 @@ export interface GoScore {
   stones: [number, number]; territory: [number, number]; total: [number, number]
   ownership: (StoneSide | null)[]; komi: number
 }
-export interface StoneView {
+export interface StoneView extends BoardUndoView {
   round: number; roundId: string; size: number; board: StoneBoard; moves: StoneMove[]
   stage: 'play' | 'scoring'; passes: number; captured: [number, number]
   dead: number[]; confirmed: [boolean, boolean]; scoreRevision: number; score: GoScore | null
