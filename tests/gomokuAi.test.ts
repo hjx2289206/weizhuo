@@ -145,27 +145,39 @@ const vcfFixtures = [
     attack: 113, forcedDefense: 112,
   },
 ]
+function assertForcingWin(initial: StoneBoard, fixture: typeof vcfFixtures[number], difficulty: 'hard' | 'challenge'): void {
+  assert.deepEqual(winningPoints(initial, 0), [])
+  assert.deepEqual(forkPoints(initial, 0), [])
+  const first = choose(initial, difficulty)
+  assert.equal(first, fixture.attack)
+  const afterAttack = withStone(initial, first, 0)
+  assert.deepEqual(winningPoints(afterAttack, 1), [])
+  assert.deepEqual(winningPoints(afterAttack, 0), [fixture.forcedDefense])
+  const reply = withStone(afterAttack, fixture.forcedDefense, 1)
+  const afterSecondAttack = withStone(reply, choose(reply, difficulty), 0)
+  assert.deepEqual(winningPoints(afterSecondAttack, 1), [])
+  const winning = winningPoints(afterSecondAttack, 0)
+  assert.ok(winning.length >= 2)
+  for (const defense of winning) {
+    const afterDefense = withStone(afterSecondAttack, defense, 1)
+    const final = choose(afterDefense, difficulty)
+    assert.ok(gomokuLine(withStone(afterDefense, final, 0), final).length >= 5)
+  }
+}
+
+const whiteLiveThree = [at(9, 1), at(10, 1), at(11, 1)]
 for (const fixture of vcfFixtures) {
   test('Hard proves VCF through ' + fixture.name, () => {
-    const initial = board(fixture.black, fixture.white)
-    assert.deepEqual(winningPoints(initial, 0), [])
-    assert.deepEqual(forkPoints(initial, 0), [])
-    const first = choose(initial, 'hard')
-    assert.equal(first, fixture.attack)
-    const afterAttack = withStone(initial, first, 0)
-    assert.deepEqual(winningPoints(afterAttack, 1), [])
-    assert.deepEqual(winningPoints(afterAttack, 0), [fixture.forcedDefense])
-    const reply = withStone(afterAttack, fixture.forcedDefense, 1)
-    const afterSecondAttack = withStone(reply, choose(reply, 'hard'), 0)
-    assert.deepEqual(winningPoints(afterSecondAttack, 1), [])
-    const winning = winningPoints(afterSecondAttack, 0)
-    assert.ok(winning.length >= 2)
-    for (const defense of winning) {
-      const afterDefense = withStone(afterSecondAttack, defense, 1)
-      const final = choose(afterDefense, 'hard')
-      assert.ok(gomokuLine(withStone(afterDefense, final, 0), final).length >= 5)
-    }
+    assertForcingWin(board(fixture.black, fixture.white), fixture, 'hard')
   })
+  for (const difficulty of ['hard', 'challenge'] as const) {
+    test(difficulty + ': opposing live three does not preempt VCF through ' + fixture.name, () => {
+      const initial = board(fixture.black, [...fixture.white, ...whiteLiveThree])
+      assert.deepEqual(winningPoints(initial, 1), [])
+      assert.ok(forkPoints(initial, 1).length > 0, 'white has an active live three')
+      assertForcingWin(initial, fixture, difficulty)
+    })
+  }
 }
 
 test('Search deadlines stay within 1.5× each configured budget on a controlled monotonic clock', () => {

@@ -233,15 +233,15 @@ class GomokuSearch {
     // Blocking an open three can mean covering its extension or taking one of its future ends.
     const threats = moves.filter(move => move.defense.replies >= 2)
     if (!threats.length) return moves
-    const safe = moves.filter(move => {
+    const responses = moves.filter(move => {
+      // A four forces a reply and can buy time to win or answer the open three.
+      if (move.attack.replies > 0) return true
       this.board[move.point] = side + 1
       const blocked = threats.every(threat => threat.point === move.point || this.threat(threat.point, other(side)).replies < 2)
       this.board[move.point] = 0
       return blocked
     })
-    if (safe.length) return safe
-    const forcing = moves.filter(move => move.attack.replies > 0)
-    return forcing.length ? forcing : threats
+    return responses.length ? responses : threats
   }
 
   private evaluate(moves: RatedMove[]): number {
@@ -284,15 +284,15 @@ class GomokuSearch {
   }
 
   /** VCF: every non-winning attack must give a check, and the defender must answer it. */
-  private forcingWin(side: StoneSide, depth: number, expired: () => boolean, allowed?: RatedMove[]): number | null {
+  private forcingWin(side: StoneSide, depth: number, expired: () => boolean, rated?: RatedMove[]): number | null {
     if (depth <= 0 || expired()) return null
-    const moves = this.rated(side)
+    const moves = rated ?? this.rated(side)
     const win = moves.find(move => move.attack.win)
     if (win) return win.point
     if (depth < 3) return null
     const counters = moves.filter(move => move.defense.win)
     if (counters.length > 1) return null
-    const attacks = (allowed ?? moves).filter(move => move.attack.replies && (!counters.length || move.point === counters[0]!.point))
+    const attacks = moves.filter(move => move.attack.replies && (!counters.length || move.point === counters[0]!.point))
     for (const { point } of attacks.slice(0, this.profile.candidates)) {
       if (expired()) return null
       this.place(point, side)
@@ -331,7 +331,7 @@ class GomokuSearch {
     }
     if (this.profile.vcf) {
       const vcfDeadline = Math.min(this.deadline, this.now() + this.profile.milliseconds * 0.35)
-      const win = this.forcingWin(side, this.profile.vcf, () => this.now() >= vcfDeadline, moves)
+      const win = this.forcingWin(side, this.profile.vcf, () => this.now() >= vcfDeadline, rated)
       if (win !== null) return win
     }
 
