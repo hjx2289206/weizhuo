@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { PhoneScreenApi } from '../usePhoneScreen'
 import { installAutoScreenEntry } from '../autoScreenEntry'
 import AppIcon from './AppIcon.vue'
-const props = defineProps<{ screen: PhoneScreenApi; strict?: boolean; orientation?: 'landscape' | 'portrait' }>()
+const props = defineProps<{ screen: PhoneScreenApi; strict?: boolean; orientation?: 'landscape' | 'portrait'; watching?: boolean }>()
 const mobile = ref(false)
 const preview = ref(false)
 const panel = ref<HTMLElement | null>(null)
@@ -51,8 +51,8 @@ onBeforeUnmount(() => { stopAuto(); window.removeEventListener('resize', measure
     <section v-if="visible" ref="panel" class="site-entry" role="dialog" aria-modal="true" :aria-label="portrait ? '进入竖屏棋盘' : '进入横屏全屏桌游'" @keydown.tab="trapFocus" @keydown.esc.prevent="browse">
       <div class="site-entry-art" aria-hidden="true"><AppIcon name="phone" /><AppIcon name="rotate" /></div>
       <p class="entry-eyebrow">桌游合集</p>
-      <h1>{{ portrait ? '竖起屏幕，下盘棋。' : '横过来，开一局。' }}</h1>
-      <p class="entry-description">{{ portrait ? '请竖放设备，棋盘和操作会在一屏内显示。' : strict ? '请横放手机，所有入口和按钮都会在一屏内显示。' : '完整牌桌，刚好握在手里。' }}</p>
+      <h1>{{ watching ? portrait ? '竖起屏幕，看棋局。' : '横过来，看牌局。' : portrait ? '竖起屏幕，下盘棋。' : '横过来，开一局。' }}</h1>
+      <p class="entry-description">{{ watching ? portrait ? '请竖放设备观看棋盘。' : '请横放设备观看牌桌。' : portrait ? '请竖放设备，棋盘和操作会在一屏内显示。' : strict ? '请横放手机，所有入口和按钮都会在一屏内显示。' : '完整牌桌，刚好握在手里。' }}</p>
       <button class="entry-primary" type="button" :disabled="screen.busy.value" @click="screen.enter"><AppIcon name="fullscreen" />{{ screen.busy.value ? '正在进入…' : portrait ? '进入竖屏全屏' : '进入横屏全屏' }}</button>
       <p class="entry-note" role="status">{{ screen.note.value }}</p>
       <button v-if="!strict || oriented" class="entry-browse" data-skip-fullscreen type="button" @click="browse"><AppIcon :name="oriented ? 'right' : 'home'" />{{ oriented ? portrait ? '继续浏览器竖屏' : '继续浏览器横屏' : '先浏览大厅' }}</button>

@@ -21,6 +21,8 @@ const props = withDefaults(
     compact?: boolean
     /** Live state of this device's own replacement request for exactly this room + seat. */
     request?: JoinRequestStatus | null
+    roomLocked?: boolean
+    spectatorCount?: number
   }>(),
   { compact: false, game: null, request: null },
 )
@@ -35,6 +37,7 @@ interface JoinRequestStatus {
 
 const emit = defineEmits<{
   (e: 'inspect', code: string): void
+  (e: 'spectate', code: string): void
   (e: 'join', payload: { code: string; seat: number; name: string }): void
   (e: 'request', payload: { code: string; seat: number; name: string }): void
   (e: 'resume'): void
@@ -118,7 +121,7 @@ const pendingHere = computed(() => requestHere.value?.status === 'pending')
 const requestStatusText = computed(() => {
   const request = requestHere.value
   if (!request) return ''
-  if (request.status === 'pending') return '等待房主同意…通过后才会看到手牌，请保持本页面打开。'
+  if (request.status === 'pending') return '等待房主同意…请保持本页面打开。'
   if (request.status === 'rejected') return '房主拒绝了这次替换申请；可以换一个座位或昵称再申请。'
   return '申请已取消，可以重新申请。'
 })
@@ -181,6 +184,12 @@ function inspect(): void {
   emit('inspect', room)
 }
 
+function spectate(): void {
+  notice.value = ''
+  const room = normalizeCode()
+  if (room) emit('spectate', room)
+}
+
 const submitLabel = computed(() => (owned.value ? '继续游戏' : occupied.value ? '申请替换' : '入座'))
 </script>
 
@@ -191,13 +200,13 @@ const submitLabel = computed(() => (owned.value ? '继续游戏' : occupied.valu
       <p class="muted">输入房间号与座位号；座位被占用时可申请替换，等待房主同意。</p>
     </template>
     <div class="form-grid">
-      <label class="field">
+      <label v-if="!roomLocked" class="field">
         房间号
         <input v-model="code" type="text" autocomplete="off" maxlength="10" placeholder="如 8F3K" />
       </label>
       <label class="field">
         座位
-        <select v-model.number="seat">
+        <select v-model.number="seat" aria-label="座位">
           <option v-for="id in seatOptions" :key="id" :value="id">{{ seatLabel(id) }}</option>
         </select>
       </label>
@@ -206,8 +215,9 @@ const submitLabel = computed(() => (owned.value ? '继续游戏' : occupied.valu
         <input v-model="name" type="text" autocomplete="nickname" maxlength="8" placeholder="最多 8 个字" />
       </label>
     </div>
+    <p v-if="spectatorCount !== undefined" class="muted">旁观 {{ spectatorCount }} 人</p>
 
-    <div v-if="roster" class="room-roster">
+    <div v-if="roster && !roomLocked" class="room-roster">
       <div
         v-for="entry in roster"
         :key="entry.id"
@@ -230,7 +240,8 @@ const submitLabel = computed(() => (owned.value ? '继续游戏' : occupied.valu
     <p v-if="requestStatusText" class="muted" role="status">{{ requestStatusText }}</p>
 
     <div class="dock-actions">
-      <button class="button ghost" type="button" :disabled="busy" @click="inspect">查看房间</button>
+      <button v-if="!roomLocked" class="button ghost" type="button" :disabled="busy" @click="inspect">查看房间</button>
+      <button v-if="!roomLocked" class="button secondary" type="button" :disabled="busy" @click="spectate">旁观</button>
       <button class="button primary" type="submit" :disabled="busy || pendingHere">{{ submitLabel }}</button>
     </div>
   </form>

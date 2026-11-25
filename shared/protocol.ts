@@ -195,7 +195,10 @@ export interface RoomSummary {
   /** Owner seat of a phone room; null for tablet rooms. */
   hostSeatId: number | null;
   hostConnected: boolean;
+  spectatorCount: number;
 }
+
+export type RoomRole = 'table' | 'player' | 'spectator';
 
 /**
  * Public automation status for this room. `message` is the honest Chinese reason when opting in is
@@ -221,7 +224,9 @@ export interface RoomSnapshotFields {
   /** The viewer's own unplayed cards only, or [] when this recipient owns no seat. */
   hand: Card[];
   selfSeat: number | null;
-  role: 'table' | 'player';
+  role: RoomRole;
+  spectatorCount: number;
+  spectatorPhrases: boolean;
   /** Host rights of THIS recipient, computed from the live connection, never from local state. */
   isHost: boolean;
   /** Owner seat of a phone room; null for tablet rooms. */
@@ -333,6 +338,7 @@ export type ClientMessageType =
   | 'ping'
   | 'create'
   | 'join'
+  | 'spectate'
   | 'resume'
   | 'inspect'
   | 'requestSeat'
@@ -353,6 +359,7 @@ export type ClientMessageType =
   | 'hint'
   | 'turnTimer'
   | 'phrase'
+  | 'spectatorPhrases'
   | 'removeOffline'
   | 'transferHost'
   | 'clearEmptySeats'
@@ -373,7 +380,7 @@ export type ClientPayload =
   | { game: GameKind; roomMode: RoomMode; name?: string } // create: the server generates the code
   | { code: string; seatId: number; name: string } // join, requestSeat
   | { code: string; token: string } // resume
-  | { code: string } // inspect
+  | { code: string } // inspect, spectate
   | { requestId: string; approve: boolean } // decideSeat
   | { name: string } // rename
   | { positions: Position[] } // seats
@@ -382,7 +389,7 @@ export type ClientPayload =
   | { cards: string[]; claim?: string } // play: claim is a Guandan declaration key
   | { cardId: string } // tribute, returnTribute
   | { seatId: number } // addBot, removeBot
-  | { enabled: boolean } // autoPlay: the acting player's own seat only
+  | { enabled: boolean } // autoPlay, spectatorPhrases
   | { seconds: number } // turnTimer: host-only per-decision limit, 0 disables
   | { phraseId: string } // phrase: one id from the shared fixed preset list
   | { seatId: number }; // transferHost: target connected human seat
@@ -400,7 +407,7 @@ export interface SessionMessage {
   game: GameKind;
   roomMode: RoomMode;
   token: string;
-  role: 'table' | 'player';
+  role: RoomRole;
   seatId: number | null;
 }
 
@@ -448,7 +455,7 @@ export interface DissolvedMessage {
 /** Ephemeral in-room quick phrase; never part of snapshots or durable game history. */
 export interface PhraseMessage {
   type: 'phrase';
-  seatId: number;
+  seatId: number | null;
   name: string;
   phraseId: string;
   text: string;

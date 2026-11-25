@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { RoomMode, ServerMessage } from '../shared/protocol';
+import type { RoomMode, RoomRole, ServerMessage } from '../shared/protocol';
 import { Room, type Peer } from './room';
 import { closeDouZero, initializeDouZero } from './bots/douzero';
 import { closeGuandan, initializeGuandan } from './bots/guandan';
@@ -50,7 +50,7 @@ interface PeerImpl extends Peer {
 
 class Connection implements PeerImpl {
   id = randomBytes(8).toString('hex');
-  role: 'table' | 'player' = 'table';
+  role: RoomRole = 'table';
   seatId: number | null = null;
   token: string | null = null;
   room: Room | null = null;
@@ -62,16 +62,24 @@ class Connection implements PeerImpl {
   constructor(readonly ws: WebSocket) {}
 
   send(message: ServerMessage): void {
+    if (message.type === 'session' || message.type === 'dissolved') this.clearReplies();
     if (this.recording) this.recording.push(message);
     if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(message));
   }
 
   supersede(): void {
+    this.clearReplies();
     try {
       this.ws.close(4000, 'superseded');
     } catch {
       /* socket already gone */
     }
+  }
+
+  /** Cached snapshots and tokens belong only to the identity that received them. */
+  private clearReplies(): void {
+    this.replies.clear();
+    this.replyOrder.length = 0;
   }
 
   remember(requestId: string): void {
@@ -137,9 +145,7 @@ function route(peer: Connection, type: string, payload: Record<string, unknown>,
     return;
   }
   if (type === 'requestSeat') {
-    // An unbound socket may ask for a seat: the room records a pending request and answers
-    // with a pending SeatRequestMessage, never a session or a hand. Approval arrives later
-    // as an ordinary session/state push for this same peer.
+    // Waiters and room spectators can request a seat. Approval binds the same socket as a player.
     const code = typeof payload.code === 'string' ? payload.code.trim().toUpperCase() : '';
     const room = rooms.get(code);
     if (!room) {
@@ -155,7 +161,7 @@ function route(peer: Connection, type: string, payload: Record<string, unknown>,
     room.requestSeat(peer, seatId, name, id);
     return;
   }
-  if (type === 'join' || type === 'resume') {
+  if (type === 'join' || type === 'resume' || type === 'spectate') {
     const code = typeof payload.code === 'string' ? payload.code.trim().toUpperCase() : '';
     const room = rooms.get(code);
     if (!room) {
@@ -166,7 +172,9 @@ function route(peer: Connection, type: string, payload: Record<string, unknown>,
       peer.send({ type: 'error', id: id || undefined, message: '你已经在一个房间中' });
       return;
     }
-    if (type === 'join') {
+    if (type === 'spectate') {
+      room.bindSpectator(peer, id);
+    } else if (type === 'join') {
       const seatId = typeof payload.seatId === 'number' ? payload.seatId : Number.NaN;
       const name = typeof payload.name === 'string' ? payload.name : '';
       room.bindJoin(peer, seatId, name, id);
@@ -202,7 +210,7 @@ function handleMessage(peer: Connection, raw: string): void {
   // Only the identity-establishing commands replay a remembered reply. `requestSeat` is
   // deliberately excluded: its pending SeatRequestMessage becomes obsolete the moment the
   // host approves, so replaying it would resurrect a queue entry that no longer exists.
-  const preRoom = type === 'create' || type === 'join' || type === 'resume';
+  const preRoom = type === 'create' || type === 'join' || type === 'resume' || type === 'spectate';
   if (preRoom) {
     const cached = id ? peer.replies.get(id) : undefined;
     if (cached) {
@@ -343,7 +351,7 @@ async function main(): Promise<void> {
       // Expiry is continuous-empty time, not room age: a long-running room that just
       // emptied keeps its full 30-minute retention window.
       if (room.isExpired(now, ROOM_TTL_MS)) {
-        room.dispose();
+        room.dispose('房间已过期');
         rooms.delete(code);
       }
     }

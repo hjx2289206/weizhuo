@@ -20,6 +20,7 @@ import {
   readRoomToken,
   readSavedSession,
   readTabCredential,
+  resolveCredential,
   removeRoomToken,
   type Credential,
   type StorageLike,
@@ -258,6 +259,8 @@ function snapshot(overrides: Partial<DoudizhuSnapshot> = {}): DoudizhuSnapshot {
     isHost: false,
     hostSeatId: null,
     hostConnected: true,
+    spectatorCount: 0,
+    spectatorPhrases: true,
     turnLimitSeconds: 0,
     turnRemainingMs: null,
     turnSeatId: null,
@@ -289,6 +292,8 @@ function guandanSnapshot(overrides: Partial<GuandanSnapshot> = {}): GuandanSnaps
     isHost: false,
     hostSeatId: null,
     hostConnected: true,
+    spectatorCount: 0,
+    spectatorPhrases: true,
     turnLimitSeconds: 0,
     turnRemainingMs: null,
     turnSeatId: null,
@@ -605,6 +610,27 @@ test('invalidation removes storage only while it still holds that exact credenti
   forgetCredential(stores, { ...mine, token: 'T3' });
   assert.equal(readRoomRecord(durable, 'AB12'), null);
   assert.equal(durable.getItem(LAST_ROOM_KEY), null);
+});
+
+test('watch links read the tab spectator credential without changing player or host storage', () => {
+  const tab = memoryStore(), durable = memoryStore();
+  const stores: Stores = { tab, durable };
+  const player: Credential = { code: 'AB12', token: 'player-token', role: 'player', seatId: 0, roomMode: 'phone' };
+  const host: Credential = { ...player, code: 'CD34', token: 'host-token', role: 'table', seatId: null, roomMode: 'tablet' };
+  const viewer: Credential = { ...player, token: 'spectator:viewer', role: 'spectator', seatId: null };
+  persistCredential(stores, player);
+  persistCredential(stores, host);
+  const original = { ...durable.dump };
+  const watchIntent = { code: player.code, seat: null, view: 'spectator' } as const;
+  assert.equal(resolveCredential(watchIntent, stores), null);
+  persistCredential(stores, viewer);
+  assert.deepEqual(durable.dump, original);
+  assert.deepEqual(resolveCredential(watchIntent, stores), viewer);
+  assert.equal(resolveCredential(watchIntent, { tab: memoryStore(), durable }), null);
+  assert.equal(resolveCredential({ ...watchIntent, view: null, seat: 0 }, stores)?.token, player.token);
+  forgetCredential(stores, viewer);
+  assert.equal(resolveCredential(watchIntent, stores), null);
+  assert.deepEqual(durable.dump, original);
 });
 
 /* ------------------------------------------------------------------ *

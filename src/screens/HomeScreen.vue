@@ -173,7 +173,7 @@ const requestStatus = computed(() => {
       <footer class="home-footer"><span>{{ notice || '同一局域网，打开链接就能一起玩。' }}</span><span>对局只在本次服务中保留</span></footer>
     </div>
     <DialogShell v-if="joinExpanded && !waiting" :title="joinGame ? `加入${GAME_DEFINITIONS[joinGame].name} · ${roomInfo?.code ?? roomCode}` : '加入朋友的房间'" class="home-join-dialog" @close="closeJoin">
-      <JoinForm :compact="true" :saved-session="savedSession" :initial-code="roomCode" :initial-seat="seatId ?? 0" :initial-name="nickname || savedSession?.name || ''" :roster="roomInfo?.seats ?? null" :game="joinGame" :busy="busy" @inspect="inspect" @join="join" @request="request" @resume="resume" />
+      <JoinForm :compact="true" :saved-session="savedSession" :initial-code="roomCode" :initial-seat="seatId ?? 0" :initial-name="nickname || savedSession?.name || ''" :roster="roomInfo?.seats ?? null" :spectator-count="roomInfo?.spectatorCount" :game="joinGame" :busy="busy" @inspect="inspect" @spectate="code => run(() => game.spectateRoom(code))" @join="join" @request="request" @resume="resume" />
     </DialogShell>
     <DialogShell v-if="seatRequest && waiting && joinExpanded" title="替换申请" class="home-join-dialog" @close="joinExpanded = false">
       <p>房间 {{ seatRequest.code }} · {{ seatRequest.seatId + 1 }} 号座 · {{ requestStatus }}</p><p>{{ seatRequest.message || '房主同意后会自动进入，请保持本页面打开。' }}</p>

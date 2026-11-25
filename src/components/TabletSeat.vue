@@ -13,11 +13,13 @@ const props = defineProps<{
   offline: boolean
   marker?: string
   team?: number
+  readonly?: boolean
 }>()
 defineEmits<{ invite: [] }>()
 const lobby = computed(() => props.phase === 'lobby')
+const canInvite = computed(() => lobby.value && !props.readonly)
 const status = computed(() => {
-  if (!props.seat.name) return '扫码入座'
+  if (!props.seat.name) return props.readonly ? '空座' : '扫码入座'
   if (props.offline) return '连接中断'
   if (props.finish) return props.finish
   if (props.active) return props.phase === 'bidding' ? '正在叫分' : '正在出牌'
@@ -29,11 +31,11 @@ const status = computed(() => {
 </script>
 
 <template>
-  <component :is="lobby ? 'button' : 'div'" class="tablet-seat"
+  <component :is="canInvite ? 'button' : 'div'" class="tablet-seat"
     :class="{ 'is-active': active && !offline, 'is-empty': !seat.name, 'is-offline': offline, 'is-finished': Boolean(finish) }"
-    :data-team="team" :data-seat-id="seat.id" :type="lobby ? 'button' : undefined"
-    :aria-label="lobby ? `邀请 ${seat.id + 1} 号座` : `${seat.id + 1} 号座 ${seat.name}，${seat.count} 张，${status}`"
-    :aria-current="active ? 'true' : undefined" @click.stop="lobby && $emit('invite')">
+    :data-team="team" :data-seat-id="seat.id" :type="canInvite ? 'button' : undefined"
+    :aria-label="canInvite ? `邀请 ${seat.id + 1} 号座` : `${seat.id + 1} 号座 ${seat.name}，${seat.count} 张，${status}`"
+    :aria-current="active ? 'true' : undefined" @click.stop="canInvite && $emit('invite')">
     <svg class="tablet-seat-frame" viewBox="0 0 168 112" fill="none" aria-hidden="true">
       <rect x=".75" y=".75" width="166.5" height="110.5" rx="17" fill="var(--seat-fill)" stroke="var(--seat-line)" stroke-width="1.5" />
       <path d="M15 9h14M9 15v11M139 9h14M159 15v11M15 103h14M9 86v11M139 103h14M159 86v11" stroke="var(--seat-line)" stroke-opacity=".55" stroke-linecap="round" />
@@ -57,7 +59,7 @@ const status = computed(() => {
           <b>{{ seat.count }}</b><span>张</span>
           <AppIcon name="cards" />
         </span>
-        <span v-else class="tablet-seat-lobby-note">{{ seat.name ? (seat.isBot ? '机器人已就位' : '手机已连接') : '点击邀请好友' }}</span>
+        <span v-else class="tablet-seat-lobby-note">{{ seat.name ? (seat.isBot ? '机器人已就位' : '手机已连接') : canInvite ? '点击邀请好友' : '等待入座' }}</span>
       </span>
     </span>
     <span class="tablet-seat-status">

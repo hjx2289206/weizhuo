@@ -37,7 +37,7 @@ import { attachGameSounds, receivesGameAudio, sfx } from './sound';
 import { HAPTIC_TURN, vibrate } from './haptics';
 import { createHeartbeat } from './connectionHeartbeat';
 
-type Mode = 'home' | 'table' | 'hand' | 'phone-table';
+type Mode = 'home' | 'table' | 'hand' | 'phone-table' | 'spectator';
 
 interface PendingRequest {
   resolve: () => void;
@@ -199,7 +199,7 @@ export function useGame() {
   /** Authenticated identity decides the screen; URL intent only covers pre-session and recovery. */
   function syncMode(): void {
     if (session) {
-      mode.value = session.role === 'table' ? 'table' : session.roomMode === 'phone' ? 'phone-table' : 'hand';
+      mode.value = session.role === 'spectator' ? 'spectator' : session.role === 'table' ? 'table' : session.roomMode === 'phone' ? 'phone-table' : 'hand';
       return;
     }
     const intent = readIntent(new URLSearchParams(location.search));
@@ -211,8 +211,8 @@ export function useGame() {
       const next = new URL(location.href);
       if (session) {
         next.searchParams.set('room', session.code);
-        if (session.role === 'table') {
-          next.searchParams.set('view', 'table');
+        if (session.role !== 'player') {
+          next.searchParams.set('view', session.role);
           next.searchParams.delete('seat');
         } else {
           next.searchParams.set('seat', String(session.seatId ?? ''));
@@ -255,8 +255,13 @@ export function useGame() {
   }
 
   function applySession(credential: Credential): void {
+    if (session?.role === 'spectator' && credential.role === 'player') {
+      forgetCredential(stores, session);
+      state.value = null;
+    }
     session = credential;
-    savedSession.value = persistCredential(stores, credential);
+    const record = persistCredential(stores, credential);
+    savedSession.value = credential.role === 'spectator' ? readSavedSession(stores) : record;
     gameKind.value = credential.game ?? null;
     roomCode.value = credential.code;
     seatId.value = credential.seatId;
@@ -286,7 +291,7 @@ export function useGame() {
     error.value =
       failure.code === 'ROOM_NOT_FOUND'
         ? '房间不存在或已过期，请重新创建或加入'
-        : '本机凭证已失效，请重新加入或向房主申请替换座位';
+        : credential.role === 'spectator' ? '旁观凭证已失效，请重新旁观' : '本机凭证已失效，请重新加入或向房主申请替换座位';
     syncMode();
   }
 
@@ -597,7 +602,8 @@ export function useGame() {
     if (roomMode !== credential.roomMode || credential.game !== snapshot.game) {
       credential.roomMode = roomMode;
       credential.game = snapshot.game;
-      savedSession.value = persistCredential(stores, credential);
+      const record = persistCredential(stores, credential);
+      if (credential.role !== 'spectator') savedSession.value = record;
       syncMode();
     }
     if (credential.role !== 'player' || snapshot.selfSeat === null) return;
@@ -635,7 +641,7 @@ export function useGame() {
         const code = normalizeCode(message.code);
         const token = typeof message.token === 'string' ? message.token : '';
         if (!code || !token) return;
-        const role: Role = message.role === 'table' ? 'table' : 'player';
+        const role: Role = message.role === 'table' || message.role === 'spectator' ? message.role : 'player';
         const seat = typeof message.seatId === 'number' && Number.isSafeInteger(message.seatId) ? message.seatId : null;
         const name = pendingName || session?.name || '';
         // A session reply authenticates the current socket after create/join as well as resume.
@@ -652,7 +658,7 @@ export function useGame() {
           seatId: seat,
           roomMode: message.roomMode === 'phone' ? 'phone' : 'tablet',
           ...(isGameKind(message.game) ? { game: message.game } : {}),
-          ...(name ? { name } : {}),
+          ...(name && role !== 'spectator' ? { name } : {}),
         });
         return;
       }
@@ -681,7 +687,7 @@ export function useGame() {
         return;
       }
       case 'phrase': {
-        if (typeof message.seatId !== 'number' || typeof message.text !== 'string') return;
+        if ((message.seatId !== null && typeof message.seatId !== 'number') || typeof message.text !== 'string') return;
         const valid = quickPhrase(message.phraseId);
         if (!valid) return;
         phrase.value = {
@@ -780,11 +786,12 @@ export function useGame() {
     }
   }
 
-  function inviteUrl(seat: number): string {
+  function inviteUrl(seat: number | null): string {
     const base = trimTrailingSlash(inviteBase.value || location.origin);
     const params = new URLSearchParams();
     if (roomCode.value) params.set('room', roomCode.value);
-    params.set('seat', String(seat));
+    if (seat === null) params.set('view', 'spectator');
+    else params.set('seat', String(seat));
     return `${base}/?${params.toString()}`;
   }
 
@@ -817,10 +824,11 @@ export function useGame() {
     if (!room) throw new Error('请输入房间号');
     if (!Number.isSafeInteger(seat) || seat < 0) throw new Error('请选择座位');
     if (!nickname) throw new Error('请输入昵称');
-    if (session) throw new Error('请先返回大厅再切换房间');
-    beginSwitch();
+    const watchingHere = session?.role === 'spectator' && session.code === room;
+    if (session && !watchingHere) throw new Error('请先返回大厅再切换房间');
+    if (!watchingHere) beginSwitch();
     // Owned seat: resume that exact identity instead of asking the server to give the seat away.
-    const token = readRoomToken(stores.durable, room, 'player', seat);
+    const token = watchingHere ? null : readRoomToken(stores.durable, room, 'player', seat);
     if (token) {
       const record = readRoomRecord(stores.durable, room);
       await bindResume({
@@ -843,6 +851,25 @@ export function useGame() {
     }
   }
 
+  async function spectateRoom(code: string): Promise<void> {
+    const room = normalizeCode(code);
+    if (!room) throw new Error('请输入房间号');
+    if (session) throw new Error('请先返回大厅再切换房间');
+    beginSwitch();
+    const remembered = resolveCredential({ code: room, seat: null, view: 'spectator' }, stores);
+    if (remembered) {
+      try { await bindResume(remembered); return; }
+      catch (failure) {
+        if (!(failure instanceof ServerError) || failure.code !== 'INVALID_CREDENTIAL') throw failure;
+      }
+    }
+    await request('spectate', { code: room });
+  }
+
+  async function setSpectatorPhrases(enabled: boolean): Promise<void> {
+    await request('spectatorPhrases', { enabled });
+  }
+
   async function inspectRoom(code: string): Promise<void> {
     const room = normalizeCode(code);
     if (!room) throw new Error('请输入房间号');
@@ -859,7 +886,7 @@ export function useGame() {
     if (!room) throw new Error('请输入房间号');
     if (!Number.isSafeInteger(seat) || seat < 0) throw new Error('请选择座位');
     if (!nickname) throw new Error('请输入昵称');
-    if (session) throw new Error('请先返回大厅再申请座位');
+    if (session && !(session.role === 'spectator' && session.code === room)) throw new Error('请先返回大厅再申请座位');
     error.value = '';
     roomInfo.value = null;
     seatRequest.value = null;
@@ -1326,6 +1353,9 @@ export function useGame() {
   savedSession.value = readSavedSession(stores);
   syncMode();
   ensureSocket();
+  if (!initial && intent.code && intent.view === 'spectator') {
+    void spectateRoom(intent.code).catch(failure => { error.value = failure instanceof Error ? failure.message : '无法旁观房间'; });
+  }
   void loadInviteBase();
   window.addEventListener('online', handleOnline);
   window.addEventListener('pageshow', handleForeground);
@@ -1333,6 +1363,7 @@ export function useGame() {
   if (getCurrentScope()) onScopeDispose(dispose);
 
   return {
+    spectateRoom, setSpectatorPhrases,
     boardAiSetupRequested, configureBoardAi, retryBoardAi, createBoardPractice,
     junqiSetup, junqiMove, junqiResign, setJunqiMode, chessMove, chessResign, chessDraw, xiangqiMove, xiangqiResign, xiangqiDraw,
     stoneMove, stonePass, stoneResign, stoneScore, stoneSetup, reversiMove, reversiResign, boardUndo,

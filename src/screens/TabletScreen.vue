@@ -38,7 +38,7 @@ import { expectedSeatCount, useGameView } from './useGameView'
 import { useDoudizhuView } from './useDoudizhuView'
 import { useGuandanView } from './useGuandanView'
 
-const props = defineProps<{ game: GameController }>()
+const props = defineProps<{ game: GameController; readOnly?: boolean }>()
 const tools = inject(GAME_TOOLS)
 function showResult(): void { if (tools) tools.resultOpen.value = true }
 const { state, connected, busy, roomCode, phrase } = props.game
@@ -103,7 +103,7 @@ const isPlaying = computed(() => phase.value === 'playing' || phase.value === 'f
 const isHost = computed(() => state.value?.isHost === true)
 const pendingRequests = computed(() => state.value?.seatRequests ?? [])
 const anyClaimed = computed(() => seats.value.some((seat) => seat.name !== null))
-const canConfigure = computed(() => !isGuandan.value && isLobby.value && draft.value.length < expectedSeats.value)
+const canConfigure = computed(() => !props.readOnly && !isGuandan.value && isLobby.value && draft.value.length < expectedSeats.value)
 /** Tablet Doudizhu seats are host-placed: trimming trailing empty positions is safe and useful. */
 const canClearEmpty = computed(() => {
   if (isGuandan.value || !isLobby.value) return false
@@ -666,6 +666,7 @@ const PHASE_EYEBROW: Record<Phase, string> = {
 const phaseEyebrow = computed(() => PHASE_EYEBROW[phase.value])
 const centerHint = computed(() => {
   if (phase.value === 'lobby') {
+    if (props.readOnly) return state.value?.message ?? ''
     if (isGuandan.value) return '上下同队 · 左右同队 · 按下 → 右 → 上 → 左出牌'
     if (seats.value.length === 0) return `点击牌桌边缘依次放置 ${expectedSeats.value} 个座位`
     if (seats.value.length < expectedSeats.value) {
@@ -715,10 +716,10 @@ const dockText = computed(() => {
 </script>
 
 <template>
-  <div class="table-screen" :class="{ 'is-immersive': immersive }" :data-phase="phase" :data-game="game">
+  <div class="table-screen" :class="{ 'is-immersive': immersive, 'is-read-only': readOnly }" :data-phase="phase" :data-game="game">
     <div v-if="immersive && game" class="table-tutorial-entry"><GameTutorialButton :game="game" :live="!['lobby', 'finished'].includes(phase)" /></div>
-    <PhraseBanner :phrase="phrase" />
-    <header class="table-header">
+    <PhraseBanner v-if="!readOnly" :phrase="phrase" />
+    <header v-if="!readOnly" class="table-header">
       <div class="brand"><BrandMark /><span>桌游合集</span></div>
       <div v-if="roomCode" class="room-badge">房间 <strong>{{ roomCode }}</strong></div>
       <span v-if="isGuandan" class="guandan-level-chip">{{ gu.levelText.value }} · {{ gu.levelsText.value }}</span>
@@ -764,7 +765,7 @@ const dockText = computed(() => {
 
       <div class="table-center">
         <span
-          v-if="immersive && common.turnClock.active.value"
+          v-if="(immersive || readOnly) && common.turnClock.active.value"
           class="turn-clock table-turn-clock"
           :class="{ urgent: common.turnClock.urgent.value }"
           role="timer"
@@ -792,14 +793,14 @@ const dockText = computed(() => {
           <GuandanExchangeNotice :view="gu" />
           <p v-if="gu.matchWinner.value !== null" class="guandan-level-match">整场已分胜负</p>
         </div>
-        <button v-if="phase === 'finished'" class="review-button table-result-reopen" type="button" @click="showResult"><AppIcon name="trophy" />查看本局结算</button>
+        <button v-if="phase === 'finished' && !readOnly" class="review-button table-result-reopen" type="button" @click="showResult"><AppIcon name="trophy" />查看本局结算</button>
       </div>
 
       <TabletSeat v-for="seat in seats" :key="seat.id" :seat="seat" :phase="phase"
         :active="(phase === 'playing' || phase === 'bidding') && state?.turn === seat.id"
         :label="seatLabel(seat)" :finish="isGuandan ? gu.finishLabel(seat.id) : ''"
         :team="isGuandan ? seat.id % 2 : undefined" :offline="seatFlags(seat.id).offline"
-        :marker="seatMarker(seat.id)?.title" :style="seatStyle(seat)" @invite="openInvite(seat)" />
+        :marker="seatMarker(seat.id)?.title" :readonly="readOnly" :style="seatStyle(seat)" @invite="openInvite(seat)" />
 
       <!-- Public history: every accepted play of the round, newest on top. -->
       <div class="table-throw-layer">
@@ -830,7 +831,7 @@ const dockText = computed(() => {
       </template>
     </div>
 
-    <div v-if="!immersive" class="table-dock">
+    <div v-if="!immersive && !readOnly" class="table-dock">
       <div class="dock-copy">
         <p class="eyebrow">{{ phaseEyebrow }}</p>
         <strong>{{ dockTitle }}</strong>
@@ -1033,3 +1034,9 @@ const dockText = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.table-screen.is-read-only { flex: 1; height: auto; min-height: 0; padding: 0; background: transparent; }
+.is-read-only .table-stage { min-height: min(390px, 60dvh); }
+.is-read-only .table-center { width: max-content; max-width: calc(100% - 20px); }
+</style>

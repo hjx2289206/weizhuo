@@ -19,6 +19,7 @@ import type {
   Position,
   RoomAutomation,
   RoomMode,
+  RoomRole,
   RoomSnapshotFields,
   RoomSummary,
   Seat,
@@ -54,6 +55,9 @@ import type { GameCommandType, GameContext, RoomGame } from './games/types';
 
 const MAX_REMEMBERED_ACTIONS = 256;
 const MAX_REMEMBERED_REQUESTS = 64;
+const MAX_SPECTATORS = 8;
+/** The separator is outside the alphabet of player and table credentials. */
+const SPECTATOR_PREFIX = 'spectator:';
 
 /** Bot action cadence: a visible, cancellable gap between two automatic actions. */
 const AUTOMATION_INTERVAL_MS = 600;
@@ -111,7 +115,7 @@ const SEAT_WORDS: Record<2 | 3 | 4, string> = { 2: '两', 3: '三', 4: '四' };
 /** Transport-agnostic connection handle owned by the socket layer. */
 export interface Peer {
   id: string;
-  role: 'table' | 'player';
+  role: RoomRole;
   seatId: number | null;
   token: string | null;
   /** Room this peer is bound to; set by the bind* methods below. */
@@ -142,6 +146,11 @@ interface Player {
   botAgent?: GuandanAgentKey;
   /** Both games: the difficulty tier the host chose for this robot. */
   botStrength?: 'strong' | 'easy';
+}
+
+interface Spectator {
+  peer: Peer | null;
+  lastPhraseAt: number;
 }
 
 /** One scheduled or in-flight automatic action; the room keeps at most one at a time. */
@@ -234,6 +243,8 @@ export class Room {
   private seenOrder: string[] = [];
   /** Last accepted quick phrase per seat, used only as a local anti-spam guard. */
   private readonly lastPhraseAt = [0, 0, 0, 0];
+  private readonly spectators = new Map<string, Spectator>();
+  private spectatorPhrases = true;
   /** Socket-layer hook: after a successful dissolution the global registry drops this room. */
   onDissolve: ((room: Room) => void) | null = null;
   private requests = new Map<string, SeatRequestRecord>();
@@ -378,7 +389,7 @@ export class Room {
     if (this.sharedChess) { this.fail(peer, requestId, '这是同屏象棋，两人直接在平板上行棋，无需手机入座'); return; }
     // A socket that already holds a seat here (or a room elsewhere) must leave before joining:
     // silently taking a second seat would leave the first one bound to a dead connection.
-    if (peer.room !== null) {
+    if (peer.room !== null && !this.spectatorFor(peer)) {
       this.fail(peer, requestId, BOUND_ELSEWHERE);
       return;
     }
@@ -402,9 +413,79 @@ export class Room {
     this.bindPlayer(peer, this.players[seatId], requestId);
   }
 
+  private get spectatorCount(): number {
+    return [...this.spectators.values()].filter(spectator => spectator.peer !== null).length;
+  }
+
+  bindSpectator(peer: Peer, requestId: string): void {
+    if (peer.room !== null) {
+      if (!this.spectatorFor(peer)) { this.fail(peer, requestId, BOUND_ELSEWHERE); return; }
+      this.sendSpectatorSession(peer, requestId);
+      peer.send({ type: 'state', state: this.snapshotFor(peer) });
+      return;
+    }
+    if (this.spectatorCount >= MAX_SPECTATORS) {
+      this.fail(peer, requestId, '房间旁观人数已满（最多 8 人）');
+      return;
+    }
+    // Retain disconnected credentials for refreshes. A new viewer can reuse a vacant slot.
+    if (this.spectators.size >= MAX_SPECTATORS) {
+      for (const [token, spectator] of this.spectators) {
+        if (spectator.peer === null) { this.spectators.delete(token); break; }
+      }
+    }
+    const token = SPECTATOR_PREFIX + newToken();
+    this.spectators.set(token, { peer, lastPhraseAt: 0 });
+    this.attachSpectator(peer, token, requestId);
+  }
+
+  private attachSpectator(peer: Peer, token: string, requestId: string): void {
+    this.claimPeer(peer);
+    peer.room = this;
+    peer.role = 'spectator';
+    peer.seatId = null;
+    peer.token = token;
+    this.sendSpectatorSession(peer, requestId);
+    this.publishSpectators();
+  }
+
+  private sendSpectatorSession(peer: Peer, requestId: string): void {
+    peer.send({ type: 'session', id: requestId, code: this.code, game: this.engine.kind,
+      roomMode: this.roomMode, token: peer.token!, role: 'spectator', seatId: null });
+    peer.send({ type: 'ack', id: requestId });
+  }
+
+  private resumeSpectator(peer: Peer, token: string, requestId: string): void {
+    const spectator = this.spectators.get(token);
+    if (!spectator) {
+      this.fail(peer, requestId, '旁观凭证已失效，请重新进入旁观', 'INVALID_CREDENTIAL');
+      return;
+    }
+    if (peer.room !== null && this.spectatorFor(peer) !== spectator) {
+      this.fail(peer, requestId, BOUND_ELSEWHERE);
+      return;
+    }
+    if (spectator.peer === peer) {
+      this.sendSpectatorSession(peer, requestId);
+      peer.send({ type: 'state', state: this.snapshotFor(peer) });
+      return;
+    }
+    const previous = spectator.peer;
+    spectator.peer = peer;
+    if (previous) {
+      this.cancelRequestsOf(previous);
+      previous.supersede();
+    }
+    this.attachSpectator(peer, token, requestId);
+  }
+
   bindResume(peer: Peer, token: string, requestId: string): void {
     if (typeof token !== 'string' || token.length === 0) {
       this.fail(peer, requestId, '凭证无效', 'INVALID_CREDENTIAL');
+      return;
+    }
+    if (token.startsWith(SPECTATOR_PREFIX)) {
+      this.resumeSpectator(peer, token, requestId);
       return;
     }
     if (this.roomMode === 'tablet' && token === this.hostToken) {
@@ -433,6 +514,12 @@ export class Room {
   /** Called by the socket layer when a bound connection drops. */
   detach(peer: Peer): void {
     let changed = this.cancelRequestsOf(peer);
+    const spectator = this.spectatorFor(peer);
+    if (spectator) {
+      spectator.peer = null;
+      this.publishSpectators();
+      return;
+    }
     if (this.hostPeer === peer) {
       this.hostPeer = null;
       changed = true;
@@ -473,7 +560,7 @@ export class Room {
       this.replayRequest(peer, known, requestId);
       return;
     }
-    if (peer.room) {
+    if (peer.room && !this.spectatorFor(peer)) {
       this.fail(peer, requestId, peer.room === this ? '你已经在这个房间中，无需申请' : '你已经在一个房间中');
       return;
     }
@@ -530,6 +617,10 @@ export class Room {
         message: '连接已失效，请重新进入房间',
         code: 'INVALID_CREDENTIAL',
       });
+      return;
+    }
+    if (peer.role === 'spectator' && type !== 'phrase') {
+      this.fail(peer, requestId, '旁观者不能操作对局');
       return;
     }
     // Dissolution tears the room down and unblocks every peer's credential, so it cannot run
@@ -611,6 +702,11 @@ export class Room {
         return this.hint(peer, id);
       case 'phrase':
         return this.sayPhrase(peer, payload, id);
+      case 'spectatorPhrases':
+        if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以设置旁观快捷语');
+        if (typeof payload.enabled !== 'boolean') return this.fail(peer, id, '快捷语设置无效');
+        this.spectatorPhrases = payload.enabled;
+        return true;
       case 'removeOffline':
         return this.removeOfflineSeats(peer, id);
       case 'transferHost':
@@ -780,19 +876,23 @@ export class Room {
    * client could use for free-form chat. Delivery is ephemeral and deliberately not in snapshots.
    */
   private sayPhrase(peer: Peer, payload: Record<string, unknown>, id: string): boolean {
-    const player = this.requiredPlayer(peer, id);
-    if (!player) return false;
+    const spectator = this.spectatorFor(peer);
+    if (spectator && !this.spectatorPhrases) return this.fail(peer, id, '房主已关闭旁观快捷语');
+    const player = spectator ? null : this.requiredPlayer(peer, id);
+    if (!spectator && !player) return false;
     const phrase = quickPhrase(payload.phraseId);
     if (!phrase) return this.fail(peer, id, '快捷语无效');
     const now = Date.now();
-    if (now - (this.lastPhraseAt[player.seatId] ?? 0) < PHRASE_COOLDOWN_MS) {
+    const last = player ? this.lastPhraseAt[player.seatId] ?? 0 : spectator!.lastPhraseAt;
+    if (now - last < PHRASE_COOLDOWN_MS) {
       return this.fail(peer, id, '快捷语发得太快了，请稍后再试');
     }
-    this.lastPhraseAt[player.seatId] = now;
+    if (player) this.lastPhraseAt[player.seatId] = now;
+    else spectator!.lastPhraseAt = now;
     const message: PhraseMessage = {
       type: 'phrase',
-      seatId: player.seatId,
-      name: player.name,
+      seatId: player?.seatId ?? null,
+      name: player?.name ?? '旁观者',
       phraseId: phrase.id,
       text: `${phrase.emoji} ${phrase.text}`,
       at: now,
@@ -891,6 +991,7 @@ export class Room {
     };
     notify(this.hostPeer);
     for (const player of this.players) notify(player?.peer ?? null);
+    for (const spectator of this.spectators.values()) notify(spectator.peer);
     for (const record of this.requests.values()) {
       if (record.status === 'pending') notify(record.peer);
     }
@@ -905,6 +1006,7 @@ export class Room {
     }
     this.hostPeer = null;
     this.players.fill(null);
+    this.spectators.clear();
     this.requests.clear();
     this.requestOrder.length = 0;
     this.dispose();
@@ -1259,6 +1361,7 @@ export class Room {
       seats: this.seatList(),
       hostSeatId: this.roomMode === 'phone' ? this.hostSeatId : null,
       hostConnected: this.hostConnected,
+      spectatorCount: this.spectatorCount,
     };
   }
 
@@ -1275,6 +1378,8 @@ export class Room {
       hand: self ? this.engine.handOf(self.seatId).slice() : [],
       selfSeat: self ? self.seatId : null,
       role: peer.role,
+      spectatorCount: this.spectatorCount,
+      spectatorPhrases: this.spectatorPhrases,
       isHost: this.isHost(peer),
       hostSeatId: this.roomMode === 'phone' ? this.hostSeatId : null,
       hostConnected: this.hostConnected,
@@ -1395,8 +1500,14 @@ export class Room {
     return player !== null && player.seatId === this.hostSeatId;
   }
 
+  private spectatorFor(peer: Peer): Spectator | null {
+    if (peer.room !== this || peer.role !== 'spectator' || peer.seatId !== null || !peer.token) return null;
+    const spectator = this.spectators.get(peer.token);
+    return spectator?.peer === peer ? spectator : null;
+  }
+
   private authenticated(peer: Peer): boolean {
-    return peer.room === this && (this.isHost(peer) || this.playerFor(peer) !== null);
+    return peer.room === this && (this.isHost(peer) || this.playerFor(peer) !== null || this.spectatorFor(peer) !== null);
   }
 
   // ---------------------------------------------------------------- automation
@@ -1943,6 +2054,7 @@ export class Room {
     // A socket holds one identity: an accepted seat ends any replacement request it was waiting in,
     // here or in another room, and clears the pointer.
     this.claimPeer(peer);
+    if (this.spectatorFor(peer)) this.spectators.delete(peer.token!);
     peer.room = this;
     peer.role = 'player';
     peer.seatId = player.seatId;
@@ -2075,10 +2187,26 @@ export class Room {
     this.broadcast();
   }
 
+  /** Viewers affect the public roster count, never pause, clocks or room retention. */
+  private publishSpectators(): void {
+    this.version += 1;
+    this.broadcast();
+  }
+
   /** Stop every room-owned timer/work item: called before deletion and on process shutdown. */
-  dispose(): void {
+  dispose(message = '房间已关闭'): void {
     this.invalidateAutomation();
     this.clearTurnTimer();
+    for (const spectator of this.spectators.values()) {
+      const peer = spectator.peer;
+      if (!peer) continue;
+      this.cancelRequestsOf(peer);
+      peer.send({ type: 'dissolved', code: this.code, message });
+      peer.room = null;
+      peer.role = 'table';
+      peer.token = null;
+    }
+    this.spectators.clear();
   }
 
   broadcast(): void {
@@ -2086,6 +2214,9 @@ export class Room {
     if (this.hostPeer) this.hostPeer.send({ type: 'state', state: this.snapshotFor(this.hostPeer) });
     for (const player of this.players) {
       if (player?.peer) player.peer.send({ type: 'state', state: this.snapshotFor(player.peer) });
+    }
+    for (const spectator of this.spectators.values()) {
+      if (spectator.peer) spectator.peer.send({ type: 'state', state: this.snapshotFor(spectator.peer) });
     }
   }
 
@@ -2095,6 +2226,7 @@ export class Room {
     for (const player of this.players) {
       if (player?.peer) player.peer.send(message);
     }
+    for (const spectator of this.spectators.values()) spectator.peer?.send(message);
   }
 
   /** The opt-in collector records one deal per seed instance and one result per finish. */
