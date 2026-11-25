@@ -93,6 +93,11 @@ export class ReversiGame implements RoomGame {
     this.legal = legalMoves(this.board, this.turn)
   }
 
+  flag(seat: number): GameResult {
+    if ((seat !== 0 && seat !== 1) || this.phase !== 'playing' || this.turn !== seat) return { ok: false, message: '当前不能判超时' }
+    this.finish(otherReversiSide(seat), `${reversiSideName(seat)}超时`)
+    return { ok: true }
+  }
   private finish(winner: ReversiSide | null, reason: string): void {
     this.phase = 'finished'
     this.winner = winner

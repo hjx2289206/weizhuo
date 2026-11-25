@@ -16,6 +16,7 @@ import type {
 import { quickPhrase } from '../shared/phrases';
 import { isBoardGame, isGameKind } from '../shared/gameCatalog';
 import { isBoardAiGame, type BoardAiGame } from '../shared/boardAi';
+import type { BoardClockPreset } from '../shared/boardClock';
 import type { BoardUndoClientAction } from '../shared/boardUndo';
 import type { GomokuRule } from '../shared/stones';
 import {
@@ -125,6 +126,7 @@ function reconnectDelay(attempt: number): number {
 
 export function useGame() {
   const state = ref<Snapshot | null>(null);
+  const stateReceivedAt = ref(0);
   // Synthesized table audio: accepted plays, 不要, your-turn chime, tribute bell, win/lose.
   attachGameSounds(state);
   // A real change of turn (or a new deal) is the only moment that earns a haptic pulse; ordinary
@@ -593,6 +595,7 @@ export function useGame() {
   }
 
   function applySnapshot(snapshot: Snapshot): void {
+    stateReceivedAt.value = performance.now();
     state.value = snapshot;
     gameKind.value = snapshot.game;
     const credential = session;
@@ -1136,6 +1139,11 @@ export function useGame() {
   }
 
   /** Host-only: set the per-decision clock; 0 disables it. The server accepts between deals. */
+  async function setBoardClock(preset: BoardClockPreset): Promise<void> {
+    error.value = '';
+    await request('boardClock', { preset });
+  }
+
   async function setTurnTimer(seconds: number): Promise<void> {
     if (!Number.isSafeInteger(seconds) || seconds < 0 || seconds > 300) throw new Error('倒计时秒数无效');
     error.value = '';
@@ -1372,6 +1380,7 @@ export function useGame() {
     junqiSetup, junqiMove, junqiResign, setJunqiMode, chessMove, chessResign, chessDraw, xiangqiMove, xiangqiResign, xiangqiDraw,
     stoneMove, stonePass, stoneResign, stoneScore, stoneSetup, reversiMove, reversiResign, boardUndo,
     state,
+    stateReceivedAt,
     connected,
     reconnectNow,
     busy,
@@ -1404,6 +1413,7 @@ export function useGame() {
     quickPractice,
     removeBot,
     setTurnTimer,
+    setBoardClock,
     setAutoPlay,
     dissolveRoom,
     removeOfflineSeats,

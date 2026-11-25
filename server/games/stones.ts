@@ -152,6 +152,11 @@ export class StoneGame implements RoomGame {
       this.winningLine = []
     }
   }
+  flag(seat: number): GameResult {
+    if ((seat !== 0 && seat !== 1) || this.phase !== 'playing' || this.stage !== 'play' || this.turn !== seat) return { ok: false, message: '当前不能判超时' }
+    this.finish(seat === 0 ? 1 : 0, `${stoneSideName(seat)}超时`)
+    return { ok: true }
+  }
   private finish(winner: StoneSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason; this.undo.undoOffer = null }
   view(): StoneGameFields {
     return { game: this.kind, phase: this.phase, turn: this.phase === 'playing' && this.stage === 'play' ? this.turn : null, lastPlay: null, tablePlays: [], trickStartIndex: 0,

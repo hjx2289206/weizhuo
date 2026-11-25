@@ -216,6 +216,8 @@ export interface RoomAutomation {
 export interface RoomSnapshotFields {
   /** Only the two open-information chess games expose computer-opponent controls. */
   boardAi?: import('./boardAi').BoardAiView;
+  /** Public chess clock, available only in games that support it. */
+  boardClock?: import('./boardClock').BoardClockView;
   /** Public deal choreography only: no card faces or opponents' private ids. */
   dealAnimation?: { id: number; elapsedMs: number; seatCount: number; cardsPerSeat: number };
   code: string;
@@ -358,6 +360,7 @@ export type ClientMessageType =
   | 'again'
   | 'hint'
   | 'turnTimer'
+  | 'boardClock'
   | 'phrase'
   | 'spectatorPhrases'
   | 'removeOffline'
@@ -391,6 +394,7 @@ export type ClientPayload =
   | { cardId: string } // tribute, returnTribute
   | { seatId: number } // addBot, removeBot
   | { enabled: boolean } // autoPlay, spectatorPhrases
+  | { preset: import('./boardClock').BoardClockPreset }
   | { seconds: number } // turnTimer: host-only per-decision limit, 0 disables
   | { phraseId: string } // phrase: one id from the shared fixed preset list
   | { seatId: number }; // transferHost: target connected human seat
