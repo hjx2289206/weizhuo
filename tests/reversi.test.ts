@@ -23,6 +23,8 @@ function passPosition(): ReversiBoard {
   return board
 }
 
+const beforeFirstPass = [19, 18, 17, 9, 1, 0, 26, 2, 10, 11, 3, 4, 8, 16, 37, 12, 5]
+
 test('Reversi starts with four alternating center disks and exactly four legal moves for black', () => {
   const board = initialReversiBoard()
   assert.deepEqual([board[27], board[28], board[35], board[36]], [1, 0, 0, 1])
@@ -68,7 +70,7 @@ test('Reversi rejects non-bracketing, occupied, wrapped and out-of-turn moves wi
   assert.ok(!legalMoves(board, 0).includes(7))
 })
 
-test('Forced Reversi pass is recorded and undo returns to before the placement that caused it', () => {
+test('Forced Reversi pass is recorded but gives no undo to a player who has never placed a disk', () => {
   const board = passPosition()
   const game = new ReversiGame({ board, turn: 1 })
   game.start()
@@ -79,16 +81,36 @@ test('Forced Reversi pass is recorded and undo returns to before the placement t
   assert.deepEqual(after.reversi.moves.map(move => [move.side, move.point]), [[1, 0], [0, null]])
   assert.equal(after.reversi.moves.at(-1)!.notation, '黑方无处可下，停一手')
   assert.match(game.statusText(0, String), /^黑方无处可下，停一手/)
-  accepted(game.command(0, 'reversiUndo', { action: 'request' }))
-  accepted(game.command(1, 'reversiUndo', { action: 'accept' }))
+  const noPlacement = { ok: false, message: '本局还没有你可以撤销的着法' }
+  assert.deepEqual(game.command(0, 'reversiUndo', { action: 'request' }), noPlacement)
+  assert.deepEqual(game.command(0, 'reversiUndo', { action: 'direct' }, { unlimitedUndo: true }), noPlacement)
+  assert.deepEqual(game.view(), after)
+  accepted(game.command(1, 'reversiUndo', { action: 'request' }))
+  accepted(game.command(0, 'reversiUndo', { action: 'accept' }))
   assert.deepEqual(game.view().reversi.board, board)
   assert.equal(game.view().reversi.moves.length, 0)
   assert.equal(game.view().turn, 1)
-  assert.deepEqual(game.view().reversi.undoUsed, [1, 0])
+  assert.deepEqual(game.view().reversi.undoUsed, [0, 1])
   place(game, 1, 0)
   place(game, 1, 56)
   assert.equal(game.view().reversi.winner, 1)
   assert.deepEqual(game.view().reversi.counts, [0, 64])
+})
+
+test('A forced Reversi passer can undo to their own previous placement and pays for the undo', () => {
+  const game = new ReversiGame()
+  game.start()
+  beforeFirstPass.slice(0, -1).forEach((point, index) => place(game, index % 2 === 0 ? 0 : 1, point))
+  const beforeBlackPlacement = game.view()
+  place(game, 0, 5)
+  place(game, 1, 6)
+  assert.deepEqual(game.view().reversi.moves.slice(-3).map(move => [move.side, move.point]), [[0, 5], [1, 6], [0, null]])
+  accepted(game.command(0, 'reversiUndo', { action: 'request' }))
+  accepted(game.command(1, 'reversiUndo', { action: 'accept' }))
+  assert.deepEqual(game.view(), {
+    ...beforeBlackPlacement,
+    reversi: { ...beforeBlackPlacement.reversi, undoUsed: [1, 0] },
+  })
 })
 
 test('Reversi ends on mutual immobility with a square left empty', () => {
@@ -165,6 +187,31 @@ test('Reversi shared tablet completes a game with real room authority, pass reco
     assert.match(result?.detail ?? '', /黑 19 子 · 白 45 子/)
     assert.ok(result?.plays.some(play => play.cards === '黑方无处可下，停一手'))
     assert.deepEqual([resultSeatLabel('reversi', 0), resultSeatLabel('reversi', 1)], ['黑方', '白方'])
+  } finally { room.dispose() }
+})
+
+test('Shared tablet Reversi charges the last side to place a disk when the last record is a forced pass', () => {
+  const room = new Room('RV02', 'tablet', 'reversi')
+  const sent: ServerMessage[] = []
+  const host: Peer = { id: 'RV02', role: 'table', seatId: null, token: null, room: null, requestRoom: null, send: message => sent.push(message), supersede() {} }
+  try {
+    room.bindCreator(host, 'create')
+    room.command(host, 'start', {}, 'start')
+    beforeFirstPass.forEach((point, index) => room.command(host, 'reversiMove', { point }, 'move-' + index))
+    const beforeWhitePlacement = room.engine.view(null)
+    assert.equal(beforeWhitePlacement.game, 'reversi')
+    assert.equal(beforeWhitePlacement.turn, 1)
+    assert.equal(beforeWhitePlacement.reversi.moves.length, beforeFirstPass.length)
+    room.command(host, 'reversiMove', { point: 6 }, 'white-move')
+    const after = room.engine.view(null)
+    assert.equal(after.game, 'reversi')
+    assert.deepEqual(after.reversi.moves.slice(-2).map(move => [move.side, move.point]), [[1, 6], [0, null]])
+    room.command(host, 'reversiUndo', { action: 'request' }, 'confirmed-undo')
+    assert.deepEqual(room.engine.view(null), {
+      ...beforeWhitePlacement,
+      reversi: { ...beforeWhitePlacement.reversi, undoUsed: [0, 1] },
+    })
+    assert.ok(!sent.some(message => message.type === 'error'))
   } finally { room.dispose() }
 })
 

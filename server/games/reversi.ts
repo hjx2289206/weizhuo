@@ -54,7 +54,7 @@ export class ReversiGame implements RoomGame {
         this.board.includes(null) ? '双方均无合法落点' : '棋盘已下满')
       return
     }
-    this.moves.push({ ply: this.moves.length + 1, point: null, side: next, flipped: [], notation: reversiPassText(next) })
+    this.moves.push({ ply: this.moves.length + 1, point: null, side: next, undoable: false, flipped: [], notation: reversiPassText(next) })
     this.turn = opponent
     this.legal = reply
   }
@@ -63,10 +63,7 @@ export class ReversiGame implements RoomGame {
     if (seat !== 0 && seat !== 1) return { ok: false, message: '只有入座玩家可以落子' }
     if (this.phase !== 'playing') return { ok: false, message: '请先准备并开始对局' }
     if (type === 'reversiUndo') {
-      const unlimited = options?.unlimitedUndo === true
-      // In practice, the player must get a fresh choice of placement after undoing.
-      const moves = this.moves.filter(move => move.point !== null || (!unlimited && move.ply > 1))
-      return this.undo.command(seat, payload.action, moves, target => this.rewind(moves[target]!.ply - 1), unlimited)
+      return this.undo.command(seat, payload.action, this.moves, target => this.rewind(target), options?.unlimitedUndo === true)
     }
     if (type === 'reversiResign') {
       this.finish(otherReversiSide(seat), reversiSideName(seat) + '认输')
@@ -86,15 +83,13 @@ export class ReversiGame implements RoomGame {
   }
 
   private rewind(target: number): void {
-    // A forced pass and the placement that triggered it share one playable boundary.
-    if (this.moves[target]!.point === null) target--
+    this.turn = this.moves[target]!.side
     const removed = this.moves.splice(target)
     for (const move of removed.reverse()) {
       if (move.point === null) continue
       this.board[move.point] = null
       for (const point of move.flipped) this.board[point] = otherReversiSide(move.side)
     }
-    this.turn = removed.at(-1)!.side
     this.legal = legalMoves(this.board, this.turn)
   }
 

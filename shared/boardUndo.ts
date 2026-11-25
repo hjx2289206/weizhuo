@@ -9,10 +9,16 @@ export interface BoardUndoView {
   undoUsed: [number, number]
 }
 
-/** The index of the requester's last recorded hand, which is the first hand to remove. */
-export function boardUndoTarget(moves: readonly { side: BoardUndoSide }[], side: BoardUndoSide): number {
+export interface BoardUndoMove {
+  side: BoardUndoSide
+  undoable?: false
+}
+
+/** The first record to remove: the last eligible move, limited to the requester if given. */
+export function boardUndoTarget(moves: readonly BoardUndoMove[], side?: BoardUndoSide): number {
   for (let index = moves.length - 1; index >= 0; index--) {
-    if (moves[index]?.side === side) return index
+    const move = moves[index]!
+    if (move.undoable !== false && (side === undefined || move.side === side)) return index
   }
   return -1
 }
