@@ -18,7 +18,7 @@ export function provideGameTools(game: GameController): GameToolsContext {
   const resultOpen = ref(false)
   let shownResult = ''
   try { records.value = readResults(window.localStorage) } catch { storageNote.value = '当前浏览器不允许保存战绩，记录仅保留在本页面' }
-  const finished = computed(() => game.state.value?.phase === 'finished' ? game.state.value : null)
+  const finished = computed(() => game.state.value?.phase === 'finished' && game.state.value.role !== 'spectator' ? game.state.value : null)
   watch(finished, snapshot => {
     if (!snapshot) { resultOpen.value = false; return }
     const record = resultFromSnapshot(snapshot)

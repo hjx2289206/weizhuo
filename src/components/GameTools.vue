@@ -16,6 +16,10 @@ const tools = inject(GAME_TOOLS)
 const menuOpen = ref(false)
 const rulesOpen = ref(false)
 const historyOpen = ref(false)
+const roomOpen = ref(false)
+const room = computed(() => props.game.state.value)
+const watchLink = computed(() => props.game.inviteUrl(null))
+const roomNotice = ref('')
 const historyIndex = ref(0), movePage = ref(0), movesOpen = ref(false)
 const historyRecord = computed(() => tools?.records.value[historyIndex.value] ?? null)
 watch(historyIndex, () => { movePage.value = 0; movesOpen.value = false })
@@ -59,6 +63,16 @@ async function save(index: number): Promise<void> {
   try { await exportResultImage(record); notice.value = '图片已生成，请查看浏览器下载' }
   catch (e) { notice.value = e instanceof Error ? e.message : '无法生成图片' }
 }
+async function copyWatchLink(): Promise<void> {
+  try { await navigator.clipboard.writeText(watchLink.value); roomNotice.value = '已复制旁观链接' }
+  catch { roomNotice.value = '请手动复制链接' }
+}
+async function toggleSpectatorPhrases(): Promise<void> {
+  const snapshot = room.value
+  if (!snapshot?.isHost) return
+  try { await props.game.setSpectatorPhrases(!snapshot.spectatorPhrases) }
+  catch (failure) { roomNotice.value = failure instanceof Error ? failure.message : '无法更新旁观快捷语' }
+}
 </script>
 <template>
   <nav class="game-tools" aria-label="显示与游戏工具">
@@ -70,6 +84,7 @@ async function save(index: number): Promise<void> {
         <button type="button" class="tool-tile" :aria-pressed="awake?.enabled.value ?? false" @click="toggleAwake"><span class="tool-tile-icon"><AppIcon name="sun" /></span><span><strong>{{ awakeText }}</strong><small>{{ awake?.supported ? '让屏幕保持明亮' : '查看设备支持情况' }}</small></span><span class="tool-switch" aria-hidden="true"></span></button>
         <button type="button" class="tool-tile" :aria-pressed="screen?.active.value ?? false" @click="toggleFullscreen"><span class="tool-tile-icon"><AppIcon :name="screen?.active.value ? 'restore' : 'fullscreen'" /></span><span><strong>{{ screen?.active.value ? '退出全屏' : game.gameKind.value && isBoardGame(game.gameKind.value) ? '竖屏全屏' : '横屏全屏' }}</strong><small>{{ game.gameKind.value && isBoardGame(game.gameKind.value) ? '竖屏展示棋盘与操作' : '完整展示牌桌与手牌' }}</small></span></button>
         <button type="button" class="tool-tile" @click="menuOpen = false; rulesOpen = true"><span class="tool-tile-icon"><AppIcon name="book" /></span><span><strong>游戏规则</strong><small>查看当前阶段怎么玩</small></span><AppIcon name="right" /></button>
+        <button v-if="room" type="button" class="tool-tile" @click="menuOpen = false; roomNotice = ''; roomOpen = true"><span class="tool-tile-icon"><AppIcon name="users" /></span><span><strong>房间信息</strong><small>旁观 {{ room.spectatorCount }} 人</small></span><AppIcon name="right" /></button>
         <button type="button" class="tool-tile" @click="menuOpen = false; historyOpen = true"><span class="tool-tile-icon"><AppIcon name="history" /></span><span><strong>聚会战绩</strong><small>留住每一局的精彩</small></span><AppIcon name="right" /></button>
         <button v-if="game.state.value?.phase === 'finished'" type="button" class="tool-tile tool-tile-result" @click="menuOpen = false; tools && (tools.resultOpen.value = true)"><span class="tool-tile-icon"><AppIcon name="trophy" /></span><span><strong>本局结算</strong><small>得分、名次与出牌回顾</small></span><AppIcon name="right" /></button>
       </div>
@@ -77,6 +92,15 @@ async function save(index: number): Promise<void> {
       <p class="tools-context"><AppIcon name="book" /><span>{{ phaseTip }}</span></p>
     </DialogShell>
     <GameRules v-if="rulesOpen" :initial-game="game.gameKind.value" :context-note="phaseTip" @close="rulesOpen = false" />
+    <DialogShell v-if="roomOpen && room" title="房间信息" @close="roomOpen = false">
+      <p>房间 {{ room.code }} · 旁观 {{ room.spectatorCount }} 人</p>
+      <label class="field">旁观链接<input class="invite-url" readonly :value="watchLink" @focus="($event.target as HTMLInputElement).select()" /></label>
+      <div class="dock-actions">
+        <button class="button secondary" type="button" @click="copyWatchLink">复制旁观链接</button>
+        <button v-if="room.isHost" class="button secondary" type="button" :disabled="game.busy.value" @click="toggleSpectatorPhrases">{{ room.spectatorPhrases ? '关闭旁观快捷语' : '开启旁观快捷语' }}</button>
+      </div>
+      <p v-if="roomNotice" role="status">{{ roomNotice }}</p>
+    </DialogShell>
     <DialogShell v-if="historyOpen" class="history-dialog" title="聚会战绩" @close="historyOpen = false">
       <p>保存本浏览器看到的最近 100 副结算；重启服务后仍可查看，清理浏览器数据后会消失。</p>
       <p v-if="tools?.storageNote.value" role="status">{{ tools.storageNote.value }}</p>

@@ -22,7 +22,7 @@ function snapshot({ board, moves = [], variant = 'two', phase = 'playing', code 
   const sides = variant === 'four' ? 4 : 2;
   return {
     code, roomMode: 'phone', seats: [], hand: [], selfSeat, role: 'player', isHost: false,
-    hostSeatId: null, hostConnected: true, turnLimitSeconds: 0, turnRemainingMs: null, turnSeatId: null,
+    hostSeatId: null, hostConnected: true, spectatorCount: 0, spectatorPhrases: true, turnLimitSeconds: 0, turnRemainingMs: null, turnSeatId: null,
     seatRequests: [], automation: { available: false, message: null }, message: '', version,
     game: 'junqi', phase, turn: phase === 'playing' ? 0 : null, lastPlay: null, tablePlays: [], trickStartIndex: 0,
     junqi: {

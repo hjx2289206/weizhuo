@@ -12,10 +12,11 @@
 //   localStorage    ddz:room:<CODE>  resumable identity metadata, never the token
 //   localStorage    ddz:token:host:<CODE>          tablet host credential
 //   localStorage    ddz:token:player:<CODE>:<SEAT>  player credential
+//   sessionStorage  ddz:spectator:<CODE>        viewer credential, scoped to this tab
 import { isGameKind } from '../shared/gameCatalog';
-import type { GameKind, RoomMode } from '../shared/protocol';
+import type { GameKind, RoomMode, RoomRole } from '../shared/protocol';
 
-export type Role = 'table' | 'player';
+export type Role = RoomRole;
 
 /** Active identity of one tab: metadata plus the secret the server authenticates. */
 export interface Credential {
@@ -44,7 +45,7 @@ export interface SavedSession {
 export interface IdentityIntent {
   code: string;
   seat: number | null;
-  view: 'table' | null;
+  view: 'table' | 'spectator' | null;
 }
 
 export type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -62,6 +63,7 @@ export const LAST_ROOM_KEY = 'ddz:last';
 const roomRecordKey = (code: string) => `ddz:room:${code}`;
 const hostTokenKey = (code: string) => `ddz:token:host:${code}`;
 const playerTokenKey = (code: string, seat: number) => `ddz:token:player:${code}:${seat}`;
+const spectatorKey = (code: string) => `ddz:spectator:${code}`;
 
 /* ------------------------------------------------------------------ *
  * storage access
@@ -120,10 +122,11 @@ export function readIntent(params: URLSearchParams): IdentityIntent {
   const trimmedSeat = rawSeat === null ? '' : rawSeat.trim();
   // Seat 0 is a real seat, so '' and 'x' must fall back to null instead of becoming 0.
   const seatValue = /^\d+$/.test(trimmedSeat) ? Number(trimmedSeat) : Number.NaN;
+  const view = params.get('view');
   return {
     code: normalizeCode(params.get('room')),
-    seat: Number.isSafeInteger(seatValue) ? seatValue : null,
-    view: params.get('view') === 'table' ? 'table' : null,
+    seat: view !== 'spectator' && Number.isSafeInteger(seatValue) ? seatValue : null,
+    view: view === 'table' || view === 'spectator' ? view : null,
   };
 }
 
@@ -140,7 +143,7 @@ function parseIdentity(raw: string | null): SavedSession | null {
     const game = parsed.game;
     return {
       code,
-      role: parsed.role === 'table' ? 'table' : 'player',
+      role: parsed.role === 'table' || parsed.role === 'spectator' ? parsed.role : 'player',
       seatId: typeof seatId === 'number' && Number.isSafeInteger(seatId) && seatId >= 0 ? seatId : null,
       roomMode: parsed.roomMode === 'phone' ? 'phone' : 'tablet',
       // Absent or unknown kinds stay absent: an old record is still a valid record.
@@ -183,7 +186,7 @@ export function writeTabCredential(store: StorageLike | null, credential: Creden
 
 function tokenKey(role: Role, code: string, seatId: number | null): string | null {
   if (role === 'table') return hostTokenKey(code);
-  return seatId === null ? null : playerTokenKey(code, seatId);
+  return role === 'player' && seatId !== null ? playerTokenKey(code, seatId) : null;
 }
 
 export function readRoomToken(store: StorageLike | null, code: string, role: Role, seatId: number | null): string | null {
@@ -244,6 +247,10 @@ export function persistCredential(stores: Stores, credential: Credential): Saved
     ...(credential.name ? { name: credential.name } : {}),
   };
   writeTabCredential(stores.tab, credential);
+  if (credential.role === 'spectator') {
+    writeKey(stores.tab, spectatorKey(credential.code), JSON.stringify(credential));
+    return record;
+  }
   writeRoomToken(stores.durable, credential.code, credential.role, credential.seatId, credential.token);
   writeKey(stores.durable, roomRecordKey(credential.code), JSON.stringify(record));
   writeLastCode(stores, credential.code);
@@ -259,6 +266,11 @@ export function persistCredential(stores: Stores, credential: Credential): Saved
 export function forgetCredential(stores: Stores, credential: Credential): void {
   const tab = readTabCredential(stores.tab);
   if (tab && tab.code === credential.code && tab.token === credential.token) writeTabCredential(stores.tab, null);
+  if (credential.role === 'spectator') {
+    const key = spectatorKey(credential.code);
+    if (parseCredential(readKey(stores.tab, key))?.token === credential.token) removeKey(stores.tab, key);
+    return;
+  }
 
   const stored = readRoomToken(stores.durable, credential.code, credential.role, credential.seatId);
   const tokenIsOurs = stored !== null && stored === credential.token;
@@ -280,6 +292,7 @@ export function forgetCredential(stores: Stores, credential: Credential): void {
 export function forgetRoom(stores: Stores, code: string): void {
   const tab = readTabCredential(stores.tab);
   if (tab && tab.code === code) removeKey(stores.tab, TAB_SESSION_KEY);
+  removeKey(stores.tab, spectatorKey(code));
   const record = readRoomRecord(stores.durable, code);
   if (record) removeRoomToken(stores.durable, code, record.role, record.seatId);
   removeKey(stores.durable, roomRecordKey(code));
@@ -298,13 +311,18 @@ export function forgetRoom(stores: Stores, code: string): void {
 export function resolveCredential(intent: IdentityIntent, stores: Stores): Credential | null {
   if (!intent.code) return null;
 
+  if (intent.view === 'spectator') {
+    const saved = parseCredential(readKey(stores.tab, spectatorKey(intent.code)));
+    return saved?.role === 'spectator' && saved.code === intent.code ? saved : null;
+  }
+
   const tab = readTabCredential(stores.tab);
   if (tab && tab.code === intent.code) {
     if (intent.seat !== null) {
       if (tab.role === 'player' && tab.seatId === intent.seat) return tab;
     } else if (intent.view === 'table') {
       if (tab.role === 'table') return tab;
-    } else {
+    } else if (tab.role !== 'spectator') {
       return tab;
     }
   }

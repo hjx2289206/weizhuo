@@ -24,7 +24,7 @@ export function snapshot(engine: RoomGame, seat: number, code: string, version =
   if (view.game === 'xiangqi') view.xiangqi.roundId = `${code}:round:${view.xiangqi.round}`
   if (view.game === 'go' || view.game === 'gomoku') view.stones.roundId = `${code}:round:${view.stones.round}`
   return clone({ ...view, code, roomMode: 'phone', role: 'player', selfSeat: seat,
-    hand: [...engine.handOf(seat)], isHost: false, hostSeatId: null, hostConnected: true,
+    hand: [...engine.handOf(seat)], isHost: false, hostSeatId: null, hostConnected: true, spectatorCount: 0, spectatorPhrases: false,
     seats: Array.from({ length: engine.seatCount }, (_, id) => ({ id, name: id === seat ? '我' : `教学对手 ${id + 1}`, connected: true, ready: true,
       count: engine.handOf(id).length, passed: engine.passedAt(id), isBot: false, autoPlay: false,
       x: .5, y: .5, angle: 0 })),

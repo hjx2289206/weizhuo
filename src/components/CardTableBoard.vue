@@ -15,8 +15,10 @@ const guandan = computed(() => props.state?.game === 'guandan')
 const ddzLayout = usePhonePlayLayout(board, 3), gdLayout = usePhonePlayLayout(board, 4)
 const self = computed(() => props.state?.selfSeat ?? 0)
 const seats = computed(() => props.state?.seats ?? [])
+const observing = computed(() => props.state?.role === 'spectator')
+const seatCount = computed(() => guandan.value ? 4 : 3)
 const lanes = computed(() => (guandan.value ? [{ offset: -1, position: 'left' as const }, { offset: 2, position: 'top' as const }, { offset: 1, position: 'right' as const }]
-  : [{ offset: -1, position: 'left' as const }, { offset: 1, position: 'right' as const }]).map(lane => ({ ...lane, seat: seats.value.find(seat => seat.id === (self.value + lane.offset + seats.value.length) % seats.value.length) })))
+  : [{ offset: -1, position: 'left' as const }, { offset: 1, position: 'right' as const }]).map(lane => ({ ...lane, seat: seats.value.find(seat => seat.id === (self.value + lane.offset + seatCount.value) % seatCount.value) })))
 const mySeat = computed(() => seats.value.find(seat => seat.id === self.value))
 function play(seat: number) { const s = props.state; return s?.tablePlays.slice(s.trickStartIndex).filter(play => play.seatId === seat).at(-1) }
 const ownPlay = computed(() => play(self.value))
@@ -48,5 +50,14 @@ function layout(position: 'left' | 'right' | 'top' | 'self', count: number) { re
     </div>
     <PhonePlayZone v-for="lane in lanes" :key="`play-${lane.position}`" :position="lane.position" :cards="lane.seat?.passed ? [] : lane.seat ? play(lane.seat.id)?.cards ?? [] : []" :passed="lane.seat?.passed" :seat-id="lane.seat?.id" :layout="layout(lane.position, lane.seat?.passed ? 0 : lane.seat ? play(lane.seat.id)?.cards.length ?? 0 : 0)" />
     <PhonePlayZone position="self" :cards="mySeat?.passed ? [] : ownPlay?.cards ?? []" :passed="mySeat?.passed" :seat-id="self" :layout="layout('self', mySeat?.passed ? 0 : ownPlay?.cards.length ?? 0)" :active="state?.turn === self" :hint="selfHint ?? state?.message ?? '等待开始'" />
+    <div v-if="observing" class="watch-bottom-seat phone-player-badge" :class="{ 'is-current': state?.turn === self }" :aria-label="seatAria(mySeat)">
+      <span class="phone-player-avatar" :class="{ 'is-landlord': landlord(self) }">{{ (mySeat?.name || '待').slice(0, 1) }}<AppIcon v-if="landlord(self)" class="landlord-mark" name="crown" /></span>
+      <span class="opponent-count">{{ !mySeat?.name ? '待加入' : state?.phase === 'lobby' ? mySeat.ready ? '已准备' : '未准备' : `剩 ${mySeat.count} 张` }}</span>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.watch-bottom-seat { position: absolute; z-index: 3; left: 50%; bottom: 6px; transform: translateX(-50%); }
+.watch-bottom-seat.is-current .phone-player-avatar { border-color: #b99e5f; box-shadow: 0 0 0 3px #cfb56d47; }
+</style>

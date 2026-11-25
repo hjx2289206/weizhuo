@@ -10,6 +10,7 @@ import HandScreen from './screens/HandScreen.vue'
 import HomeScreen from './screens/HomeScreen.vue'
 import PhoneTableScreen from './screens/PhoneTableScreen.vue'
 import TabletScreen from './screens/TabletScreen.vue'
+import SpectatorScreen from './screens/SpectatorScreen.vue'
 import { useGame } from './useGame'
 import { provideGameTools } from './gameTools'
 import { provideSiteScreen } from './siteScreen'
@@ -47,7 +48,8 @@ function leave(): void {
 
 <template>
   <div class="app-shell">
-    <JunqiScreen v-if="mode !== 'home' && gameKind === 'junqi'" :game="game" @animating="boardAnimating = $event" />
+    <SpectatorScreen v-if="mode === 'spectator'" :game="game" />
+    <JunqiScreen v-else-if="mode !== 'home' && gameKind === 'junqi'" :game="game" @animating="boardAnimating = $event" />
     <XiangqiScreen v-else-if="mode !== 'home' && gameKind === 'xiangqi'" :game="game" @animating="boardAnimating = $event" />
     <ChessScreen v-else-if="mode !== 'home' && gameKind === 'chess'" :game="game" @animating="boardAnimating = $event" />
     <ReversiScreen v-else-if="mode !== 'home' && gameKind === 'reversi'" :game="game" @animating="boardAnimating = $event" />
@@ -72,7 +74,9 @@ function leave(): void {
     </section>
     <HomeScreen v-else :game="game" />
     <ResultDialog v-if="!teachingVisible && tools.resultOpen.value && game.state.value?.phase === 'finished' && !(portraitBoard && boardAnimating)" :game="game" @close="tools.resultOpen.value = false" />
-    <SiteEntry v-if="!teachingVisible && (mode === 'home' || invitedChess || gameKind !== null && gameKind !== 'junqi')" :strict="mode === 'home' || invitedChess || portraitBoard" :orientation="portraitFlow ? 'portrait' : 'landscape'" :screen="siteScreen" />
+    <SiteEntry v-if="!teachingVisible && (mode === 'home' || invitedChess || gameKind !== null && (gameKind !== 'junqi' || mode === 'spectator'))"
+      :strict="mode === 'home' || mode === 'spectator' || invitedChess || portraitBoard" :watching="mode === 'spectator'"
+      :orientation="portraitFlow ? 'portrait' : 'landscape'" :screen="siteScreen" />
 
     <div v-if="mode !== 'home' && !connected" class="connection-banner" role="status">
       <span>连接已中断，正在自动重连；牌局与身份凭证会保留。</span>
