@@ -8,6 +8,8 @@ import type { GameController } from '../useGame'
 import { useBoardPlayback } from '../useBoardPlayback'
 import StoneBoard from '../components/StoneBoard.vue'
 import BoardAiControl from '../components/BoardAiControl.vue'
+import BoardClockControl from '../components/BoardClockControl.vue'
+import BoardClockReadout from '../components/BoardClockReadout.vue'
 import BoardUndoControl from '../components/BoardUndoControl.vue'
 import BrandMark from '../components/BrandMark.vue'
 import GameTools from '../components/GameTools.vue'
@@ -84,7 +86,8 @@ async function copy(seat: number): Promise<void> { try { await navigator.clipboa
       <aside class="stone-panel">
         <label v-if="s.game === 'go' && s.phase === 'lobby'" class="stone-size">棋盘<select :value="s.stones.size" :disabled="locked || !s.isHost" @change="run(() => game.stoneSetup(Number(($event.target as HTMLSelectElement).value)))"><option v-for="size in GO_SIZES" :key="size" :value="size">{{ size }} 路{{ size === 9 ? ' · 入门推荐' : size === 19 ? ' · 标准棋盘' : ' · 进阶练习' }}</option></select><small>更换棋盘后需重新准备</small></label>
         <label v-else-if="s.game === 'gomoku' && s.phase === 'lobby'" class="stone-size">规则<select :value="rule" :disabled="locked || !s.isHost" @change="run(() => game.stoneSetup(($event.target as HTMLSelectElement).value as GomokuRule))"><option value="freestyle">无禁手（默认）</option><option value="renju">黑方禁手</option></select><small v-if="!shared">更改规则后需重新准备</small></label>
-        <div class="stone-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.turn === seat.id && s.phase === 'playing' }"><i :class="seat.id === 0 ? 'black' : 'white'"></i><div><strong>{{ seat.name ?? `等待${stoneSideName(seat.id)}` }}<small v-if="seat.id === side">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? thinking ? '正在思考' : '自动落子' : shared ? stoneSideName(seat.id) : !seat.name ? '空位' : !seat.connected ? '等待重连' : s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : stoneSideName(seat.id) }}<template v-if="s.game === 'go'"> · 提 {{ s.stones.captured[seat.id] }} 子</template></span></div></article></div>
+        <BoardClockControl :game="game" :disabled="locked" />
+        <div class="stone-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.turn === seat.id && s.phase === 'playing' }"><i :class="seat.id === 0 ? 'black' : 'white'"></i><div><strong>{{ seat.name ?? `等待${stoneSideName(seat.id)}` }}<small v-if="seat.id === side">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? thinking ? '正在思考' : '自动落子' : shared ? stoneSideName(seat.id) : !seat.name ? '空位' : !seat.connected ? '等待重连' : s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : stoneSideName(seat.id) }}<template v-if="s.game === 'go'"> · 提 {{ s.stones.captured[seat.id] }} 子</template></span><BoardClockReadout :game="game" :seat="seat.id" :flipped="shared && !computer && seat.id === 1" /></div></article></div>
         <div v-if="s.phase === 'lobby'" class="stone-actions"><button v-if="!shared && side !== null" class="button" :class="me?.ready ? 'secondary' : 'primary'" :disabled="locked" @click="run(game.ready)">{{ me?.ready ? '取消准备' : '我准备好了' }}</button><button v-if="s.isHost" class="button primary" :disabled="locked || !canStart" @click="run(game.start)">开始对弈</button></div>
         <template v-else-if="s.phase === 'playing' && s.stones.stage === 'play'">
           <div class="stone-actions">

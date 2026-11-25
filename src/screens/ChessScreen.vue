@@ -5,6 +5,8 @@ import { chessCoordinate, chessDestinations, chessName, chessSideName, CHESS_PRO
 import ChessBoard from '../components/ChessBoard.vue'
 import ChessToken from '../components/ChessToken.vue'
 import BoardAiControl from '../components/BoardAiControl.vue'
+import BoardClockControl from '../components/BoardClockControl.vue'
+import BoardClockReadout from '../components/BoardClockReadout.vue'
 import BoardUndoControl from '../components/BoardUndoControl.vue'
 import { boardAiLabel } from '../../shared/boardAi'
 import BrandMark from '../components/BrandMark.vue'
@@ -70,7 +72,8 @@ async function copy(seat: number): Promise<void> { try { await navigator.clipboa
       <div class="chess-board-column"><div class="chess-board-meta"><span>{{ computer ? `人机对弈 · 你执${chessSideName(humanSide!)}` : shared ? '双人同屏 · 双方棋子各朝自己' : side === null ? '公开棋盘' : `你执${chessSideName(side)}` }}</span><span>{{ s.phase === 'lobby' ? '标准开局 · 白方先走' : s.phase === 'finished' ? '本局结束' : `第 ${s.chess.moves.length + 1} 步` }}</span></div><div class="chess-board-frame"><ChessBoard :board="board" :side="side" :selected="selected" :targets="targets" :disabled="!editable" :last="last" :opposed="shared && !computer" :checked="s.chess.check" :live="playback" @select="select" /></div></div>
       <aside class="chess-panel">
 
-        <div class="chess-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.phase === 'playing' && s.turn === seat.id, 'is-white': seat.id === 0 }"><svg class="chess-seat-icon" viewBox="-30 -30 60 60" aria-hidden="true"><ChessToken :piece="{ id: `seat-${seat.id}`, side: seat.id as ChessSide, rank: 'k' }" :facing-away="shared && !computer && seat.id === 1" /></svg><div><strong>{{ seat.name ?? '等待朋友' }}<small v-if="side === seat.id">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? s.boardAi?.thinking ? '正在思考' : '自动行棋' : shared ? computer ? '玩家' : '平板同屏' : seat.name ? seat.connected ? s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : '在线' : '等待重连' : `${chessSideName(seat.id)} · 空位` }}</span></div></article></div>
+        <BoardClockControl :game="game" :disabled="locked" />
+        <div class="chess-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.phase === 'playing' && s.turn === seat.id, 'is-white': seat.id === 0 }"><svg class="chess-seat-icon" viewBox="-30 -30 60 60" aria-hidden="true"><ChessToken :piece="{ id: `seat-${seat.id}`, side: seat.id as ChessSide, rank: 'k' }" :facing-away="shared && !computer && seat.id === 1" /></svg><div><strong>{{ seat.name ?? '等待朋友' }}<small v-if="side === seat.id">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? s.boardAi?.thinking ? '正在思考' : '自动行棋' : shared ? computer ? '玩家' : '平板同屏' : seat.name ? seat.connected ? s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : '在线' : '等待重连' : `${chessSideName(seat.id)} · 空位` }}</span><BoardClockReadout :game="game" :seat="seat.id" :flipped="shared && !computer && seat.id === 1" /></div></article></div>
         <div v-if="s.phase === 'lobby'" class="chess-actions"><button v-if="!shared && side !== null" class="button" :class="me?.ready ? 'secondary' : 'primary'" :disabled="locked" @click="run(game.ready)">{{ me?.ready ? '取消准备' : '我准备好了' }}</button><button v-if="s.isHost" class="button primary" :disabled="locked || !canStart" @click="run(game.start)">开始对弈</button></div>
         <div v-else-if="s.phase === 'playing' && (shared || side !== null)" class="chess-actions">
           <button v-if="computer" class="button secondary" :disabled="locked" @click="resignSide = humanSide!; resignOpen = true">认输</button>

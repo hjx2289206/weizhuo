@@ -5,6 +5,8 @@ import type { ReversiSnapshot } from '../../shared/protocol'
 import { REVERSI_FLIP_MS, otherReversiSide, reversiCoordinate, reversiSideName, type ReversiBoard, type ReversiSide } from '../../shared/reversi'
 import AppIcon from '../components/AppIcon.vue'
 import BoardAiControl from '../components/BoardAiControl.vue'
+import BoardClockControl from '../components/BoardClockControl.vue'
+import BoardClockReadout from '../components/BoardClockReadout.vue'
 import BoardUndoControl from '../components/BoardUndoControl.vue'
 import BrandMark from '../components/BrandMark.vue'
 import DialogShell from '../components/DialogShell.vue'
@@ -128,12 +130,14 @@ async function copy(seat: number): Promise<void> {
         </div>
       </div>
       <div class="reversi-panel">
+        <BoardClockControl :game="game" :disabled="locked" />
         <div class="reversi-counts" aria-label="双方棋子数">
           <article v-for="seat in snapshot.seats" :key="seat.id" :class="{ current: snapshot.turn === seat.id }">
             <i :class="{ white: seat.id === 1 }" aria-hidden="true"></i>
             <div><strong>{{ seat.name ?? reversiSideName(seat.id) }}</strong>
               <small>{{ seat.isBot ? thinking ? '思考中' : '电脑' : seat.id === side ? '我 · ' + reversiSideName(seat.id) :
                 !seat.name ? '等待入座' : !seat.connected ? '等待重连' : snapshot.phase === 'lobby' && !shared ? seat.ready ? '已准备' : '未准备' : reversiSideName(seat.id) }}</small>
+              <BoardClockReadout :game="game" :seat="seat.id" :flipped="opposed && seat.id === 1" />
             </div>
             <b :aria-label="reversiSideName(seat.id) + snapshot.reversi.counts[seat.id] + '子'">{{ snapshot.reversi.counts[seat.id] }}</b>
           </article>

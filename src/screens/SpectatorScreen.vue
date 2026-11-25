@@ -7,6 +7,7 @@ import type { Snapshot } from '../../shared/protocol'
 import type { GameController } from '../useGame'
 import { resultFromSnapshot, resultSeatLabel } from '../resultHistory'
 import AppIcon from '../components/AppIcon.vue'
+import BoardClockReadout from '../components/BoardClockReadout.vue'
 import BrandMark from '../components/BrandMark.vue'
 import CardTableBoard from '../components/CardTableBoard.vue'
 import ChessBoard from '../components/ChessBoard.vue'
@@ -110,6 +111,7 @@ function say(id: string): void {
       <ul v-if="boardGame" class="spectator-seats" aria-label="对局双方">
         <li v-for="seat in room.seats" :key="seat.id" :class="{ 'is-turn': room.turn === seat.id }">
           <strong>{{ seatLabel(room, seat.id) }}</strong>
+          <BoardClockReadout :game="game" :seat="seat.id" />
           <span v-if="room.game === 'reversi'">{{ room.reversi.counts[seat.id] }} 子</span>
           <span v-if="seat.connected && room.phase === 'lobby'">{{ seat.ready ? '已准备' : '未准备' }}</span>
           <span v-if="seat.name && !seat.connected">等待重连</span>

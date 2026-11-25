@@ -7,6 +7,10 @@
 import { randomBytes } from 'node:crypto';
 import { supportsRoomMode, isBlackFirstGame, isBoardGame, GAME_DEFINITIONS } from '../shared/gameCatalog';
 import { dealDuration } from '../shared/dealAnimation';
+import {
+  BOARD_CLOCK_PRESETS, boardClockBudget, boardClockOptions, initialBoardClockTime, spendBoardClock,
+  type BoardClockPreset, type BoardClockSide, type BoardClockTime, type BoardClockView,
+} from '../shared/boardClock';
 import type {
   Card,
   DoudizhuGameFields,
@@ -274,6 +278,11 @@ export class Room {
   /** Bumped whenever the armed timer is cleared, so a queued callback cannot act twice. */
   private turnTimerEpoch = 0;
 
+  private boardClockPreset: BoardClockPreset = 'off';
+  private boardClockTimes: [BoardClockTime, BoardClockTime] = [initialBoardClockTime('off'), initialBoardClockTime('off')];
+  private boardClockRun: { side: BoardClockSide; startedAt: number } | null = null;
+  private boardClockTimer: NodeJS.Timeout | null = null;
+
   constructor(
     code: string,
     roomMode: RoomMode,
@@ -281,6 +290,7 @@ export class Room {
     policy: DouZeroPolicy = douZeroPolicy,
     guandanBridge: GuandanPolicy = guandanPolicy,
     private readonly boardPolicy: BoardAiPolicy = boardAiPolicy,
+    private readonly boardNow: () => number = () => performance.now(),
   ) {
     if (!supportsRoomMode(game, roomMode)) throw new Error(`${GAME_DEFINITIONS[game].name}不支持公共平板模式`);
     this.code = code;
@@ -635,6 +645,13 @@ export class Room {
       return;
     }
     const readOnly = type === 'hint' || type === 'phrase';
+    const arrivedAt = this.boardNow();
+    if (!readOnly && this.expireBoardClock(arrivedAt)) {
+      this.fail(peer, requestId, '用时已耗尽，本局已结束');
+      this.version += 1;
+      this.broadcast();
+      return;
+    }
     if (!this.dispatch(peer, type, payload, requestId)) return;
     if (requestId) {
       this.seenActions.set(requestId, true);
@@ -649,8 +666,10 @@ export class Room {
     // neither bumps the version or broadcasts a layout-triggering snapshot.
     if (readOnly) return;
     this.version += 1;
-    // Arm both clocks before the snapshot so every recipient learns the next deadline in the
-    // same version that changed the turn. Neither call mutates game state.
+    if (type === 'chessMove' || type === 'xiangqiMove' || type === 'stoneMove' || type === 'reversiMove' || type === 'stonePass') {
+      this.completeBoardClockTurn(arrivedAt, type !== 'stonePass');
+    }
+    this.refreshBoardClock(arrivedAt);
     this.refreshAutomation();
     this.refreshTurnTimer();
     this.broadcast();
@@ -715,6 +734,8 @@ export class Room {
         return this.clearEmptySeats(peer, id);
       case 'turnTimer':
         return this.setTurnTimer(peer, payload, id);
+      case 'boardClock':
+        return this.configureBoardClock(peer, payload.preset, id);
       case 'bid':
       case 'chessMove':
       case 'stoneMove':
@@ -1032,6 +1053,102 @@ export class Room {
     return true;
   }
 
+  // ---------------------------------------------------------------- board clock
+
+  private configureBoardClock(peer: Peer, choice: unknown, id: string): boolean {
+    if (!this.engine.flag) return this.fail(peer, id, '当前游戏不支持棋钟');
+    if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以设置棋钟');
+    if (this.phase !== 'lobby') return this.fail(peer, id, '只能在准备阶段设置棋钟');
+    const preset = boardClockOptions(this.engine.kind).find(option => option === choice);
+    if (!preset) return this.fail(peer, id, '棋钟选项无效');
+    if (preset === this.boardClockPreset) return true;
+    this.boardClockPreset = preset;
+    this.resetBoardClock();
+    for (const player of this.players) if (player && !player.isBot) player.ready = false;
+    return true;
+  }
+
+  private resetBoardClock(): void {
+    this.stopBoardClock(this.boardNow());
+    this.boardClockTimes = [initialBoardClockTime(this.boardClockPreset), initialBoardClockTime(this.boardClockPreset)];
+  }
+
+  private boardClockTime(side: BoardClockSide, at: number): BoardClockTime {
+    const run = this.boardClockRun;
+    const time = this.boardClockTimes[side];
+    return run?.side === side
+      ? spendBoardClock(time, at - run.startedAt, BOARD_CLOCK_PRESETS[this.boardClockPreset].periodMs)
+      : { ...time };
+  }
+
+  private boardClockView(): BoardClockView {
+    const at = this.boardNow();
+    const time = (side: BoardClockSide) => this.boardClockPreset === 'off' || this.boardAiConfig?.side === side
+      ? null : this.boardClockTime(side, at);
+    return { preset: this.boardClockPreset, times: [time(0), time(1)], running: this.boardClockRun?.side ?? null };
+  }
+
+  private stopBoardClock(at: number): void {
+    const run = this.boardClockRun;
+    if (!run) return;
+    this.boardClockTimes[run.side] = this.boardClockTime(run.side, at);
+    this.boardClockRun = null;
+    if (this.boardClockTimer !== null) clearTimeout(this.boardClockTimer);
+    this.boardClockTimer = null;
+  }
+
+  private completeBoardClockTurn(at: number, earnsIncrement: boolean): void {
+    const side = this.boardClockRun?.side;
+    if (side === undefined) return;
+    const preset = BOARD_CLOCK_PRESETS[this.boardClockPreset];
+    this.stopBoardClock(at);
+    const time = this.boardClockTimes[side];
+    if (earnsIncrement) time.mainMs += preset.incrementMs;
+    if (time.periodsLeft > 0) time.periodRemainingMs = preset.periodMs;
+  }
+
+  private refreshBoardClock(at = this.boardNow()): void {
+    if (this.boardClockPreset === 'off') return;
+    // A shared tablet's two local sides aren't in the phone roster checked by paused().
+    const turn = this.phase === 'playing' && this.hostConnected && !this.paused() ? this.engine.view(null).turn : null;
+    const side = (turn === 0 || turn === 1) && turn !== this.boardAiConfig?.side ? turn : null;
+    if (side === (this.boardClockRun?.side ?? null)) return;
+    this.stopBoardClock(at);
+    if (side === null) return;
+    this.boardClockRun = { side, startedAt: this.boardNow() };
+    this.armBoardClock();
+  }
+
+  private armBoardClock(): void {
+    const run = this.boardClockRun;
+    if (!run) return;
+    const now = this.boardNow();
+    const remaining = boardClockBudget(this.boardClockTime(run.side, now), BOARD_CLOCK_PRESETS[this.boardClockPreset].periodMs);
+    this.boardClockTimer = setTimeout(() => {
+      if (this.boardClockRun !== run) return;
+      this.boardClockTimer = null;
+      if (!this.expireBoardClock(this.boardNow())) {
+        this.armBoardClock();
+        return;
+      }
+      this.version += 1;
+      this.broadcast();
+    }, Math.max(1, Math.ceil(remaining)));
+    this.boardClockTimer.unref();
+  }
+
+  /** Both the deadline callback and the command path settle against the same monotonic clock. */
+  private expireBoardClock(at: number): boolean {
+    const run = this.boardClockRun;
+    if (!run) return false;
+    const remaining = this.boardClockTime(run.side, at);
+    if (remaining.mainMs > 0 || remaining.periodsLeft > 0) return false;
+    this.stopBoardClock(at);
+    if (!this.engine.flag?.(run.side).ok) return false;
+    this.invalidateAutomation();
+    return true;
+  }
+
   // ---------------------------------------------------------------- bots and 托管
 
   /** One computer opponent, configured only by the live host before a round starts. */
@@ -1104,7 +1221,7 @@ export class Room {
       const { type, payload } = board.command(move);
       const result = this.engine.command(pending.side, type, payload);
       if (!result.ok) { this.failBoardAi(`电脑返回的走法无效：${result.message}`); return; }
-      this.cancelBoardAi(); this.version++; this.refreshAutomation(); this.refreshTurnTimer(); this.broadcast();
+      this.cancelBoardAi(); this.version++; this.refreshBoardClock(); this.refreshAutomation(); this.refreshTurnTimer(); this.broadcast();
     } catch (error) {
       if (this.pendingBoardAi === pending) this.failBoardAi(error instanceof Error ? error.message : '电脑行棋失败');
     }
@@ -1344,6 +1461,7 @@ export class Room {
     this.automationFailure = null;
     this.boardAiError = null;
     this.invalidateAutomation();
+    this.resetBoardClock();
     this.seenActions.clear();
     this.seenOrder = [];
     return true;
@@ -1388,6 +1506,7 @@ export class Room {
         ? null
         : Math.max(0, this.turnTimerDeadline - Date.now()),
       turnSeatId: this.turnTimerSeat,
+      ...(this.engine.flag ? { boardClock: this.boardClockView() } : {}),
       seatRequests: this.isHost(peer) ? this.pendingRequests() : [],
       automation: this.automationState(),
       ...(isBoardAiGame(kind) ? { boardAi: {
@@ -2181,7 +2300,9 @@ export class Room {
       this.emptySince = null;
     }
     this.version += 1;
-    // Roster/connection changes decide whether automation and the turn clock may run at all.
+    // Roster/connection changes decide whether automation and clocks may run at all.
+    const now = this.boardNow();
+    if (!this.expireBoardClock(now)) this.refreshBoardClock(now);
     this.refreshAutomation();
     this.refreshTurnTimer();
     this.broadcast();
@@ -2197,6 +2318,7 @@ export class Room {
   dispose(message = '房间已关闭'): void {
     this.invalidateAutomation();
     this.clearTurnTimer();
+    this.stopBoardClock(this.boardNow());
     for (const spectator of this.spectators.values()) {
       const peer = spectator.peer;
       if (!peer) continue;

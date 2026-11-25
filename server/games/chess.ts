@@ -95,6 +95,15 @@ export class ChessGame implements RoomGame {
     else if (this.engine.isThreefoldRepetition()) this.finish(null, '同一局面三次重复，自动和棋')
     else if (this.engine.isDrawByFiftyMoves()) this.finish(null, '连续 50 回合无吃子且无兵移动，自动和棋')
   }
+  flag(seat: number): GameResult {
+    if (this.phase !== 'playing' || this.side() !== seat) return { ok: false, message: '当前不能判超时' }
+    const opponent = seat === 0 ? 1 : 0
+    const pieces = this.board.filter(piece => piece && piece.side === opponent && piece.rank !== 'k')
+    const insufficient = pieces.length === 0 || (pieces.length === 1 && (pieces[0]?.rank === 'b' || pieces[0]?.rank === 'n'))
+    const reason = `${chessSideName(seat)}超时`
+    this.finish(insufficient ? null : opponent, insufficient ? `${reason}，对方子力不足以将死，和棋` : reason)
+    return { ok: true }
+  }
   private finish(winner: ChessSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason; this.drawOffer = null; this.undo.undoOffer = null }
   view(): ChessGameFields {
     const checked = this.engine.isCheck() ? this.side() : null

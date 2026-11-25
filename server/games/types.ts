@@ -57,6 +57,9 @@ export interface RoomGame {
   /** One legal timeout fallback for this seat, or null when the seat owes no decision. */
   timeoutAction(seatId: number): TimeoutAction | null;
 
+  /** Adjudicate a board-clock flag on the currently active side. */
+  flag?(seatId: number): GameResult;
+
   /** Public snapshot fields plus this viewer's private game view; never another seat's cards. */
   view(selfSeat: number | null): GameView;
 

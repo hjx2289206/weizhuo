@@ -94,6 +94,11 @@ export class XiangqiGame implements RoomGame {
     this.drawOffer = null
     this.lastOffer = [this.lastOffer[0].filter(ply => ply <= target), this.lastOffer[1].filter(ply => ply <= target)]
   }
+  flag(seat: number): GameResult {
+    if ((seat !== 0 && seat !== 1) || this.phase !== 'playing' || this.turn !== seat) return { ok: false, message: '当前不能判超时' }
+    this.finish(seat === 0 ? 1 : 0, `${xiangqiSideName(seat)}超时`)
+    return { ok: true }
+  }
   private finish(winner: XiangqiSide | null, reason: string): void { this.phase = 'finished'; this.winner = winner; this.draw = winner === null; this.reason = reason; this.turn = null; this.drawOffer = null; this.undo.undoOffer = null }
   view(): XiangqiGameFields {
     return { game: 'xiangqi', phase: this.phase, turn: this.turn, lastPlay: null, tablePlays: [], trickStartIndex: 0,

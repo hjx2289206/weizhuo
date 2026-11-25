@@ -4,6 +4,8 @@ import type { GameController } from '../useGame'
 import { xiangqiCoordinate, xiangqiDestinations, xiangqiName, xiangqiSideName, type XiangqiBoard as Board, type XiangqiSide } from '../../shared/xiangqi'
 import XiangqiBoard from '../components/XiangqiBoard.vue'
 import BoardAiControl from '../components/BoardAiControl.vue'
+import BoardClockControl from '../components/BoardClockControl.vue'
+import BoardClockReadout from '../components/BoardClockReadout.vue'
 import BoardUndoControl from '../components/BoardUndoControl.vue'
 import { boardAiLabel } from '../../shared/boardAi'
 import BrandMark from '../components/BrandMark.vue'
@@ -67,7 +69,8 @@ async function copy(seat: number): Promise<void> { try { await navigator.clipboa
       <div class="xiangqi-board-column"><div class="xiangqi-board-meta"><span>{{ computer ? `人机对弈 · 你执${xiangqiSideName(humanSide!)}` : shared ? '双人同屏 · 双方棋字各朝自己' : side === null ? '公开棋盘' : `你执${xiangqiSideName(side)}` }}</span><span>{{ s.phase === 'lobby' ? '标准开局 · 红方先走' : s.phase === 'finished' ? '本局结束' : `第 ${s.xiangqi.moves.length + 1} 步` }}</span></div><div class="xiangqi-board-frame"><XiangqiBoard :board="board" :side="side" :selected="selected" :targets="targets" :disabled="!editable" :last="last" :opposed="shared && !computer" :checked="s.xiangqi.check" :live="playback" @select="select" /></div></div>
       <aside class="xiangqi-panel">
 
-        <div class="xiangqi-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.phase === 'playing' && s.turn === seat.id, 'is-red': seat.id === 0 }"><b>{{ seat.id === 0 ? '帅' : '将' }}</b><div><strong>{{ seat.name ?? '等待朋友' }}<small v-if="side === seat.id">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? s.boardAi?.thinking ? '正在思考' : '自动行棋' : shared ? computer ? '玩家' : '平板同屏' : seat.name ? seat.connected ? s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : '在线' : '等待重连' : `${xiangqiSideName(seat.id)} · 空位` }}</span></div></article></div>
+        <BoardClockControl :game="game" :disabled="locked" />
+        <div class="xiangqi-roster"><article v-for="seat in s.seats" :key="seat.id" :class="{ active: s.phase === 'playing' && s.turn === seat.id, 'is-red': seat.id === 0 }"><b>{{ seat.id === 0 ? '帅' : '将' }}</b><div><strong>{{ seat.name ?? '等待朋友' }}<small v-if="side === seat.id">我</small><small v-if="s.hostSeatId === seat.id">房主</small></strong><span>{{ seat.isBot ? s.boardAi?.thinking ? '正在思考' : '自动行棋' : shared ? computer ? '玩家' : '平板同屏' : seat.name ? seat.connected ? s.phase === 'lobby' ? seat.ready ? '已准备' : '未准备' : '在线' : '等待重连' : `${xiangqiSideName(seat.id)} · 空位` }}</span><BoardClockReadout :game="game" :seat="seat.id" :flipped="shared && !computer && seat.id === 1" /></div></article></div>
         <div v-if="s.phase === 'lobby'" class="xiangqi-actions"><button v-if="!shared && side !== null" class="button" :class="me?.ready ? 'secondary' : 'primary'" :disabled="locked" @click="run(game.ready)">{{ me?.ready ? '取消准备' : '我准备好了' }}</button><button v-if="s.isHost" class="button primary" :disabled="locked || !canStart" @click="run(game.start)">开始对弈</button></div>
         <div v-else-if="s.phase === 'playing' && (shared || side !== null)" class="xiangqi-actions">
           <button v-if="computer" class="button secondary" :disabled="locked" @click="resignSide = humanSide!; resignOpen = true">认输</button>
