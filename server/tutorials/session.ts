@@ -1,4 +1,5 @@
 import type { GameKind } from '../../shared/protocol'
+import { isStoneGame } from '../../shared/gameCatalog'
 import { TUTORIAL_VERSION, type TeachingClip, type TeachingLevel, type TeachingRequest, type TeachingState } from '../../shared/tutorialProtocol'
 import { buildStoneClips } from './stones'
 import { doudizhuCourse } from './doudizhu'
@@ -12,12 +13,12 @@ import { buildClips } from './clips'
 const courses = new Map<GameKind, TeachingCourse>(), clips = new Map<GameKind, TeachingClip[]>()
 export function teachingCourse(game: GameKind): TeachingCourse {
   let course = courses.get(game)
-  if (!course) { course = game === 'go' || game === 'gomoku' ? { game, matches: [] } : game === 'chess' ? chessCourse() : game === 'xiangqi' ? xiangqiCourse() : game === 'doudizhu' ? doudizhuCourse() : game === 'guandan' ? guandanCourse() : junqiCourse(); courses.set(game, course) }
+  if (!course) { course = isStoneGame(game) ? { game, matches: [] } : game === 'chess' ? chessCourse() : game === 'xiangqi' ? xiangqiCourse() : game === 'doudizhu' ? doudizhuCourse() : game === 'guandan' ? guandanCourse() : junqiCourse(); courses.set(game, course) }
   return course
 }
 export function teachingClips(game: GameKind): TeachingClip[] {
   let value = clips.get(game)
-  if (!value) { value = game === 'go' || game === 'gomoku' ? buildStoneClips(game) : buildClips(teachingCourse(game)); clips.set(game, value) }
+  if (!value) { value = isStoneGame(game) ? buildStoneClips(game) : buildClips(teachingCourse(game)); clips.set(game, value) }
   return value
 }
 

@@ -3,6 +3,7 @@ import AppIcon from './AppIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { GAME_DEFINITIONS, isBoardGame } from '../../shared/gameCatalog'
 import type { GameKind } from '../../shared/protocol'
+import { RULE_TABS } from '../gamePresentation'
 
 /**
  * User-facing rule sheet. It states the frozen choices of this version next to the source they
@@ -103,14 +104,21 @@ const GOMOKU: RuleRow[] = [
   { term: '无禁手规则', detail: '普通无禁手规则，不是连珠竞赛规则。三三、四四、长连都不禁止，六连以上也赢。不设交换开局，不设让子，不提供悔棋。' },
   { term: '结束与联机', detail: '满盘仍无人连五，判和；可以认输，不能停一手。平板双人同屏直接开始；联机双方准备后房主开局，掉线暂停并可重连。结束后房主可再开一局。' },
 ]
-const TABS: readonly GameKind[] = ['doudizhu', 'guandan', 'xiangqi', 'chess', 'go', 'gomoku', 'junqi']
+const RULE_ROWS: Record<GameKind, RuleRow[]> = {
+  doudizhu: DOUDIZHU,
+  guandan: GUANDAN,
+  xiangqi: XIANGQI,
+  chess: CHESS,
+  go: GO,
+  gomoku: GOMOKU,
+  junqi: JUNQI,
+}
 const tab = ref<GameKind>(props.initialGame ?? 'doudizhu')
-const rows = (game: GameKind): RuleRow[] => (game === 'go' ? GO : game === 'gomoku' ? GOMOKU : game === 'chess' ? CHESS : game === 'xiangqi' ? XIANGQI : game === 'junqi' ? JUNQI : game === 'guandan' ? GUANDAN : DOUDIZHU)
 const nameOf = (game: GameKind): string => GAME_DEFINITIONS[game].name
 
 const page = ref(0), pageSize = ref(3)
-const pages = computed(() => Math.ceil(rows(tab.value).length / pageSize.value))
-const visibleRows = computed(() => rows(tab.value).slice(page.value * pageSize.value, (page.value + 1) * pageSize.value))
+const pages = computed(() => Math.ceil(RULE_ROWS[tab.value].length / pageSize.value))
+const visibleRows = computed(() => RULE_ROWS[tab.value].slice(page.value * pageSize.value, (page.value + 1) * pageSize.value))
 function measure(): void { pageSize.value = innerHeight <= 550 || innerWidth < 600 && innerHeight < 700 ? 1 : innerWidth < 600 ? 2 : 3; page.value = Math.min(page.value, pages.value - 1) }
 watch(tab, () => { page.value = 0 })
 const dialog = ref<HTMLElement | null>(null)
@@ -163,7 +171,7 @@ onBeforeUnmount(() => {
 
       <nav class="rules-tabs">
         <button
-          v-for="kind in TABS"
+          v-for="kind in RULE_TABS"
           :key="kind"
           class="rules-tab"
           :class="{ 'is-active': tab === kind }"

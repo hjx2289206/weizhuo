@@ -14,12 +14,11 @@ import type {
   Snapshot,
 } from '../shared/protocol';
 import { quickPhrase } from '../shared/phrases';
-import { isBoardGame } from '../shared/gameCatalog';
+import { isBoardGame, isGameKind } from '../shared/gameCatalog';
 import {
   browserStores,
   forgetCredential,
   forgetRoom,
-  isGameKind,
   normalizeCode,
   persistCredential,
   readIntent,

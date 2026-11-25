@@ -1,7 +1,6 @@
 import type { GameKind, Snapshot } from '../shared/protocol'
-import { GAME_DEFINITIONS } from '../shared/gameCatalog'
+import { GAME_DEFINITIONS, isBoardGame, isGameKind, isStoneGame } from '../shared/gameCatalog'
 import { junqiCoordinate, junqiSideName, junqiTeamName } from '../shared/junqi'
-import { isBoardGame } from '../shared/gameCatalog'
 import { chessCoordinate, chessSideName } from '../shared/chess'
 import { xiangqiCoordinate, xiangqiSideName } from '../shared/xiangqi'
 import { scoreGame } from '../shared/doudizhu'
@@ -95,7 +94,7 @@ export function readResults(storage: Pick<Storage, 'getItem'>): ResultRecord[] {
     const value: unknown = JSON.parse(storage.getItem(RESULT_HISTORY_KEY) ?? '[]')
     if (!Array.isArray(value)) return []
     return value.filter((r): r is ResultRecord => !!r && typeof r.key === 'string' && typeof r.code === 'string'
-      && (r.game === 'doudizhu' || r.game === 'guandan' || r.game === 'junqi' || r.game === 'xiangqi' || r.game === 'chess' || r.game === 'go' || r.game === 'gomoku') && typeof r.date === 'string' && typeof r.title === 'string' && typeof r.detail === 'string'
+      && isGameKind(r.game) && typeof r.date === 'string' && typeof r.title === 'string' && typeof r.detail === 'string'
       && Array.isArray(r.players) && r.players.every((p: ResultRecord['players'][number]) => p && typeof p.name === 'string' && Number.isInteger(p.seat))
       && Array.isArray(r.plays) && r.plays.every((p: ResultRecord['plays'][number]) => p && typeof p.name === 'string' && typeof p.cards === 'string' && Number.isInteger(p.seat))).slice(0, HISTORY_LIMIT)
   } catch { return [] }
@@ -160,7 +159,7 @@ export async function exportResultImage(record: ResultRecord): Promise<void> {
     ctx.fillStyle = '#657461'; ctx.font = '15px sans-serif'; ctx.fillText(`${player.seat + 1} 号座`, 153, y + 62)
     ctx.textAlign = 'right'; ctx.font = '26px Georgia, serif'
     ctx.fillStyle = (player.delta ?? 0) > 0 ? '#365e3e' : '#77695c'
-    ctx.fillText(player.delta !== undefined ? `${player.delta > 0 ? '+' : ''}${player.delta}` : record.game === 'go' || record.game === 'gomoku' ? player.seat === 0 ? '黑方' : '白方' : record.game === 'chess' ? chessSideName(player.seat) : record.game === 'xiangqi' ? xiangqiSideName(player.seat) : record.game === 'junqi' ? junqiSideName(player.seat) : player.seat % 2 === 0 ? '1、3 号座' : '2、4 号座', 810, y + 49)
+    ctx.fillText(player.delta !== undefined ? `${player.delta > 0 ? '+' : ''}${player.delta}` : isStoneGame(record.game) ? player.seat === 0 ? '黑方' : '白方' : record.game === 'chess' ? chessSideName(player.seat) : record.game === 'xiangqi' ? xiangqiSideName(player.seat) : record.game === 'junqi' ? junqiSideName(player.seat) : player.seat % 2 === 0 ? '1、3 号座' : '2、4 号座', 810, y + 49)
     if (player.total !== undefined) { ctx.fillStyle = '#657461'; ctx.font = '22px sans-serif'; ctx.fillText(String(player.total), 1008, y + 49) }
     ctx.textAlign = 'left'; y += 82
   }

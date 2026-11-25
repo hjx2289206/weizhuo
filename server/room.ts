@@ -46,7 +46,7 @@ import { BOARD_AI_DIFFICULTIES, boardAiLabel, isBoardAiDifficulty, type BoardAiC
 import { boardAiPolicy, boardSearchPosition, type BoardAiPolicy } from './bots/boardAi';
 import { GuandanGame } from './games/guandan';
 import { createPlayStamper } from './games/playLog';
-import type { GameCommandType, RoomGame } from './games/types';
+import type { GameCommandType, GameContext, RoomGame } from './games/types';
 
 const MAX_REMEMBERED_ACTIONS = 256;
 const MAX_REMEMBERED_REQUESTS = 64;
@@ -63,17 +63,29 @@ const PHRASE_COOLDOWN_MS = 900;
 /** One socket owns one identity: a bound connection returns to the hall before taking another. */
 const BOUND_ELSEWHERE = '你已经在一个房间里，请先返回大厅';
 
+const ENGINE_FACTORIES: Record<GameKind, (context: GameContext) => RoomGame> = {
+  doudizhu: (context) => new DoudizhuGame(context),
+  guandan: (context) => new GuandanGame(context),
+  xiangqi: () => new XiangqiGame(),
+  go: () => new StoneGame('go'),
+  gomoku: () => new StoneGame('gomoku'),
+  chess: () => new ChessGame(),
+  junqi: () => new JunqiGame(),
+};
+
+const TWO_SEATS: readonly Position[] = [{ x: .5, y: .88, angle: 0 }, { x: .5, y: .12, angle: 180 }];
+
 /**
  * Canonical phone seats per game, in seat order, following the table convention
  * (bottom 0deg, left 90deg, top 180deg, right -90deg): Doudizhu bottom/left/right,
  * Guandan bottom/right/top/left so that next=right and partner=opposite.
  */
 const PHONE_SEATS: Record<GameKind, readonly Position[]> = {
-  chess: [{ x: .5, y: .88, angle: 0 }, { x: .5, y: .12, angle: 180 }],
-  go: [{ x: .5, y: .88, angle: 0 }, { x: .5, y: .12, angle: 180 }],
-  gomoku: [{ x: .5, y: .88, angle: 0 }, { x: .5, y: .12, angle: 180 }],
-  xiangqi: [{ x: .5, y: .88, angle: 0 }, { x: .5, y: .12, angle: 180 }],
-  junqi: [{ x: .5, y: .88, angle: 0 }, { x: .5, y: .12, angle: 180 }],
+  chess: TWO_SEATS,
+  go: TWO_SEATS,
+  gomoku: TWO_SEATS,
+  xiangqi: TWO_SEATS,
+  junqi: TWO_SEATS,
   doudizhu: [
     { x: 0.5, y: 0.88, angle: 0 },
     { x: 0.1, y: 0.5, angle: 90 },
@@ -263,7 +275,7 @@ export class Room {
     context.onDeal = (seatCount, cardsPerSeat) => {
       this.dealPresentation = { id: ++this.dealSequence, startedAt: Date.now(), seatCount, cardsPerSeat };
     };
-    this.engine = game === 'go' || game === 'gomoku' ? new StoneGame(game) : game === 'chess' ? new ChessGame() : game === 'xiangqi' ? new XiangqiGame() : game === 'junqi' ? new JunqiGame() : game === 'guandan' ? new GuandanGame(context) : new DoudizhuGame(context);
+    this.engine = ENGINE_FACTORIES[game](context);
     this.players = Array.from({ length: this.seatCount }, () => null);
     if (roomMode === 'phone' || game !== 'doudizhu') this.positions = PHONE_SEATS[game].map((seat) => ({ ...seat }));
   }

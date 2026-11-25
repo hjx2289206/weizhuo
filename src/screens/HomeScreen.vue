@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import BrandMark from '../components/BrandMark.vue'
 import { computed, nextTick, ref } from 'vue'
-import { GAME_DEFINITIONS, supportsRoomMode, isBoardGame } from '../../shared/gameCatalog'
+import { GAME_DEFINITIONS, GAME_KINDS, supportsRoomMode, isBoardGame, isStoneGame } from '../../shared/gameCatalog'
 import type { GameKind, RoomMode } from '../../shared/protocol'
 import type { GameController } from '../useGame'
 import GameCover from '../components/GameCover.vue'
@@ -12,16 +12,16 @@ import AppIcon from '../components/AppIcon.vue'
 import DialogShell from '../components/DialogShell.vue'
 import JoinForm from '../components/JoinForm.vue'
 import { useGameView } from './useGameView'
+import { GAME_NOTES } from '../gamePresentation'
 
 const props = defineProps<{ game: GameController }>()
 const { busy, roomCode, seatId, roomInfo, seatRequest, savedSession } = props.game
 const { run } = useGameView(props.game)
 
 /** The hall lists only implemented games and their supported entry modes. */
-const GAMES: readonly GameKind[] = ['doudizhu', 'guandan', 'xiangqi', 'go', 'gomoku', 'chess', 'junqi']
 const CATEGORIES = [
-  { key: 'board', title: '棋类', note: '一步一想，棋逢对手', games: GAMES.filter(isBoardGame) },
-  { key: 'cards', title: '牌类', note: '围桌出牌，搭档接招', games: GAMES.filter(game => !isBoardGame(game)) },
+  { key: 'board', title: '棋类', note: '一步一想，棋逢对手', games: GAME_KINDS.filter(isBoardGame) },
+  { key: 'cards', title: '牌类', note: '围桌出牌，搭档接招', games: GAME_KINDS.filter(game => !isBoardGame(game)) },
 ] as const
 type Category = typeof CATEGORIES[number]['key']
 const category = ref<Category | null>(null)
@@ -47,14 +47,6 @@ async function backToCategories(): Promise<void> {
   await nextTick()
   categoryPicker.value?.querySelector<HTMLButtonElement>(`[data-category="${previous}"]`)?.focus({ preventScroll: true })
 }
-const GAME_NOTES: Record<GameKind, string> = {
-  go: '9 / 13 / 19 路 · 数子法 · 基础 / 进阶教程',
-  gomoku: '15 路无禁手 · 五子或以上连线获胜',
-  chess: '双人同屏 / 联机 · 竖屏对弈',
-  xiangqi: '双人同屏 / 联机 · 竖屏对弈', junqi: '双人 / 四国暗棋 · 竖屏对弈',
-  doudizhu: '3 人 · 1 副牌 · 地主对农民', guandan: '4 人 · 2 副牌 · 两两搭档',
-}
-
 const nickname = ref(savedSession.value?.name ?? '')
 const nicknameInput = ref<HTMLInputElement | null>(null)
 const notice = ref('')
@@ -167,7 +159,7 @@ const requestStatus = computed(() => {
         <div class="collection-games" :data-category="activeCategory.key" :style="{ '--game-count': visibleGames.length }">
           <article v-for="entry in visibleGames" :key="entry" class="collection-game-card" :data-game="entry">
             <div class="collection-game-cover"><GameCover :game="entry" /></div>
-            <div class="game-card-copy"><div class="game-card-heading"><h2 class="panel-title">{{ GAME_DEFINITIONS[entry].name }}</h2><GameTutorialButton v-if="entry === 'go' || entry === 'gomoku'" :game="entry" /><button v-if="entry === 'chess' || entry === 'xiangqi'" class="board-practice-entry" :disabled="busy" :aria-label="`${GAME_DEFINITIONS[entry].name}人机对弈`" @click="practiceBoard(entry)">人机对弈<AppIcon name="right" /></button></div><p class="collection-game-note">{{ GAME_NOTES[entry] }}</p></div>
+            <div class="game-card-copy"><div class="game-card-heading"><h2 class="panel-title">{{ GAME_DEFINITIONS[entry].name }}</h2><GameTutorialButton v-if="isStoneGame(entry)" :game="entry" /><button v-if="entry === 'chess' || entry === 'xiangqi'" class="board-practice-entry" :disabled="busy" :aria-label="`${GAME_DEFINITIONS[entry].name}人机对弈`" @click="practiceBoard(entry)">人机对弈<AppIcon name="right" /></button></div><p class="collection-game-note">{{ GAME_NOTES[entry] }}</p></div>
             <div class="collection-actions">
               <button v-if="supportsRoomMode(entry, 'tablet')" class="button primary" :disabled="busy" @click="create(entry, 'tablet')"><AppIcon name="table" />{{ isBoardGame(entry) ? '平板双人同屏' : '平板开一桌' }}</button>
               <button class="button primary" :disabled="busy" @click="create(entry, 'phone')"><AppIcon :name="isBoardGame(entry) ? 'users' : 'phone'" />{{ isBoardGame(entry) ? '联机对弈' : '手机开一桌' }}</button>

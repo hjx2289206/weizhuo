@@ -12,18 +12,10 @@
 //   localStorage    ddz:room:<CODE>  resumable identity metadata, never the token
 //   localStorage    ddz:token:host:<CODE>          tablet host credential
 //   localStorage    ddz:token:player:<CODE>:<SEAT>  player credential
-import { GAME_DEFINITIONS } from '../shared/gameCatalog';
+import { isGameKind } from '../shared/gameCatalog';
 import type { GameKind, RoomMode } from '../shared/protocol';
 
 export type Role = 'table' | 'player';
-
-/**
- * True only for the kinds this collection implements. Anything else (a future or foreign game
- * written by another build) is metadata we keep out of the identity, never coerce to Doudizhu.
- */
-export function isGameKind(value: unknown): value is GameKind {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(GAME_DEFINITIONS, value);
-}
 
 /** Active identity of one tab: metadata plus the secret the server authenticates. */
 export interface Credential {
