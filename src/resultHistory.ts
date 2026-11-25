@@ -5,6 +5,7 @@ import { chessCoordinate, chessSideName } from '../shared/chess'
 import { xiangqiCoordinate, xiangqiSideName } from '../shared/xiangqi'
 import { reversiSideName } from '../shared/reversi'
 import { scoreGame } from '../shared/doudizhu'
+import { GOMOKU_RULES, type GomokuRule } from '../shared/stones'
 import { ICON_PATHS } from './icons'
 import { bottomCardText, rankGlyph } from './screens/cardText'
 
@@ -17,6 +18,7 @@ export interface ResultRecord {
   detail: string
   players: { name: string; seat: number; delta?: number; total?: number }[]
   junqiVariant?: 'two' | 'four'
+  gomokuRule?: GomokuRule
   plays: { seat: number; name: string; cards: string }[]
 }
 export const RESULT_HISTORY_KEY = 'tabletop:results:v1'
@@ -27,8 +29,10 @@ export function resultFromSnapshot(snapshot: Snapshot, date = new Date().toISOSt
   if (snapshot.phase !== 'finished') return null
   if (snapshot.game === 'go' || snapshot.game === 'gomoku') {
     const x = snapshot.stones
+    const gomokuRule = snapshot.game === 'gomoku' ? x.rule ?? 'freestyle' : undefined
     return { key: `${snapshot.code}:${snapshot.game}:${x.roundId}`, code: snapshot.code, game: snapshot.game, date,
-      title: x.draw ? '和棋' : `${x.winner === 0 ? '黑方' : '白方'}获胜`, detail: `${x.size} 路 · ${x.reason} · 共 ${x.moves.length} 手`,
+      ...(gomokuRule ? { gomokuRule } : {}),
+      title: x.draw ? '和棋' : `${x.winner === 0 ? '黑方' : '白方'}获胜`, detail: `${x.size} 路 · ${gomokuRule ? GOMOKU_RULES[gomokuRule] + ' · ' : ''}${x.reason} · 共 ${x.moves.length} 手`,
       players: snapshot.seats.map(player => ({ name: player.name ?? (player.id === 0 ? '黑方' : '白方'), seat: player.id })),
       plays: x.moves.map(move => ({ seat: move.side, name: move.side === 0 ? '黑方' : '白方', cards: move.notation })) }
   }

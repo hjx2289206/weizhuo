@@ -673,11 +673,11 @@ export class Room {
       case 'junqiMode':
         return this.setJunqiMode(peer, payload, id);
       case 'stoneSetup': {
-        if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以选择棋盘大小');
-        if (!(this.engine instanceof StoneGame)) return this.fail(peer, id, '当前不是围棋房间');
-        const result = this.engine.setSize(payload.size);
+        if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以设置棋盘或规则');
+        if (!(this.engine instanceof StoneGame)) return this.fail(peer, id, '当前不是围棋或五子棋房间');
+        const result = this.engine.kind === 'gomoku' ? this.engine.setRule(payload.rule) : this.engine.setSize(payload.size);
         if (!result.ok) return this.fail(peer, id, result.message);
-        for (const player of this.players) if (player) player.ready = false;
+        for (const player of this.players) if (player && !player.isBot) player.ready = false;
         return true;
       }
       case 'seats':

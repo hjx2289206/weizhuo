@@ -17,6 +17,7 @@ import { quickPhrase } from '../shared/phrases';
 import { isBoardGame, isGameKind } from '../shared/gameCatalog';
 import { isBoardAiGame, type BoardAiGame } from '../shared/boardAi';
 import type { BoardUndoClientAction } from '../shared/boardUndo';
+import type { GomokuRule } from '../shared/stones';
 import {
   browserStores,
   forgetCredential,
@@ -1016,7 +1017,10 @@ export function useGame() {
     const agreement = action === 'confirm' && current?.game === 'go' ? { revision: current.stones.scoreRevision, roundId: current.stones.roundId } : {};
     await request('stoneScore', { action, ...agreement, ...(point === undefined ? {} : { point }), ...(side === undefined ? {} : { side }) });
   }
-  async function stoneSetup(size: number): Promise<void> { error.value = ''; await request('stoneSetup', { size }); }
+  async function stoneSetup(setting: number | GomokuRule): Promise<void> {
+    error.value = '';
+    await request('stoneSetup', typeof setting === 'number' ? { size: setting } : { rule: setting });
+  }
   async function chessResign(side?: 0 | 1): Promise<void> { error.value = ''; await request('chessResign', side === undefined ? {} : { side }); }
   async function chessDraw(action: 'offer' | 'accept' | 'decline' | 'agree', side?: 0 | 1): Promise<void> { error.value = ''; await request('chessDraw', { action, ...(side === undefined ? {} : { side }) }); }
   async function xiangqiMove(from: number, to: number): Promise<void> { error.value = ''; await request('xiangqiMove', { from, to }); }

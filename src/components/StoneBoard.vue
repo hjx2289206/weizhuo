@@ -1,12 +1,34 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue'
-import { stoneCoordinate, stoneSideName, type StoneBoard, type StoneMove, type StoneSide } from '../../shared/stones'
+import { createRenjuAnalyzer, renjuForbiddenText, stoneCoordinate, stonePositionKey, stoneSideName, type RenjuForbidden, type StoneBoard, type StoneMove, type StoneSide } from '../../shared/stones'
 import type { BoardPlayback } from '../useBoardPlayback'
-const props = withDefaults(defineProps<{ board: StoneBoard; size: number; selected?: number | null; previewSide?: StoneSide; disabled?: boolean; last?: number | null; dead?: number[]; winningLine?: number[]; ownership?: (StoneSide | null)[]; focusPoints?: number[]; live?: BoardPlayback<StoneBoard, StoneMove> | null }>(), { selected: null, previewSide: 0, last: null, dead: () => [], winningLine: () => [], focusPoints: () => [] })
+const props = withDefaults(defineProps<{ board: StoneBoard; size: number; selected?: number | null; previewSide?: StoneSide; disabled?: boolean; last?: number | null; dead?: number[]; winningLine?: number[]; ownership?: (StoneSide | null)[]; focusPoints?: number[]; live?: BoardPlayback<StoneBoard, StoneMove> | null; renjuBoard?: StoneBoard | null }>(), { selected: null, previewSide: 0, last: null, dead: () => [], winningLine: () => [], focusPoints: () => [] })
 const emit = defineEmits<{ select: [point: number] }>()
 const art = `stones-${useId()}`, root = ref<SVGSVGElement | null>(null), cursor = ref(Math.floor(props.size ** 2 / 2))
 const step = computed(() => 520 / (props.size - 1)), radius = computed(() => step.value * .45)
 const xy = (point: number) => ({ x: 40 + point % props.size * step.value, y: 40 + Math.floor(point / props.size) * step.value })
+const emptyForbidden = new Map<number, RenjuForbidden>()
+let cachedForbidden = { key: '', points: emptyForbidden }
+const forbidden = computed(() => {
+  const board = props.renjuBoard
+  if (!board) return emptyForbidden
+  const key = `${props.size}:${stonePositionKey(board)}`
+  if (cachedForbidden.key !== key) {
+    const analyzer = createRenjuAnalyzer(props.size, point => board[point])
+    const points = new Map<number, RenjuForbidden>()
+    board.forEach((stone, point) => {
+      if (stone !== null) return
+      const reason = analyzer.forbidden(point)
+      if (reason) points.set(point, reason)
+    })
+    cachedForbidden = { key, points }
+  }
+  return cachedForbidden.points
+})
+function intersectionLabel(point: number, stone: StoneSide | null): string {
+  const reason = forbidden.value.get(point)
+  return `${stoneCoordinate(point, props.size)}，${stone === null ? '空位' : stoneSideName(stone) + '棋子'}${props.dead.includes(point) ? '，已标死子' : ''}${reason ? '，' + renjuForbiddenText(reason) : ''}`
+}
 const liveMove = computed(() => props.live?.move ?? null)
 const livePoint = computed(() => liveMove.value?.point ?? null)
 const shown = computed(() => {
@@ -48,13 +70,16 @@ function keydown(event: KeyboardEvent, point: number): void {
     <g fill="#8f794f"><circle v-for="p in stars" :key="p" :cx="xy(p).x" :cy="xy(p).y" r="3" /></g>
     <g fill="#88734d" font-family="sans-serif" font-size="11" text-anchor="middle"><template v-for="i in size" :key="i"><text :x="40+(i-1)*step" y="30">{{ 'ABCDEFGHJKLMNOPQRST'[i-1] }}</text><text x="27" :y="44+(i-1)*step">{{ i }}</text></template></g>
     <g v-if="live && livePoint !== null" class="stone-live-ripple" :clip-path="`url(#${art}-board)`" pointer-events="none" aria-hidden="true"><circle :cx="xy(livePoint ?? 0).x" :cy="xy(livePoint ?? 0).y" :r="ripple.r" fill="none" stroke="#a8792c" stroke-width="2.5" :opacity="ripple.opacity" /></g>
-    <g v-for="(stone,p) in shown" :key="p" class="stone-intersection" :data-stone-point="p" role="button" :tabindex="cursor === p ? 0 : -1" :aria-disabled="disabled" :aria-label="`${stoneCoordinate(p,size)}，${stone === null ? '空位' : stoneSideName(stone)+'棋子'}${dead.includes(p) ? '，已标死子' : ''}`" @focus="cursor = p" @keydown="keydown($event,p)" @click="!disabled && emit('select',p)">
+    <g v-for="(stone,p) in shown" :key="p" class="stone-intersection" :data-stone-point="p" role="button" :tabindex="cursor === p ? 0 : -1" :aria-disabled="disabled" :aria-label="intersectionLabel(p, stone)" @focus="cursor = p" @keydown="keydown($event,p)" @click="!disabled && emit('select',p)">
       <rect class="stone-hit" :x="xy(p).x-step/2" :y="xy(p).y-step/2" :width="step" :height="step" fill="transparent" />
       <circle v-if="focusPoints.includes(p)" :cx="xy(p).x" :cy="xy(p).y" :r="radius+3" fill="#c8a34a70" />
       <g v-if="stone !== null" class="placed-stone" :opacity="stoneOpacity(p)" :transform="stoneTransform(p)" pointer-events="none"><ellipse :cx="xy(p).x+1" :cy="xy(p).y+2" :rx="radius" :ry="radius*.94" fill="#27352630" /><circle :cx="xy(p).x" :cy="xy(p).y" :r="radius" :fill="`url(#${art}-${stone === 0 ? 'black' : 'white'})`" :stroke="stone === 0 ? '#1d291e' : '#b7b6a1'" stroke-width=".7" /><template v-if="last === p"><circle class="stone-last-ring" :cx="xy(p).x" :cy="xy(p).y" :r="radius+Math.max(2.8,radius*.2)" fill="none" stroke="#c2603d" stroke-width="2.6" /><circle class="stone-last-mark" :cx="xy(p).x" :cy="xy(p).y" :r="Math.max(4.2,radius*.28)" :fill="stone === 0 ? '#fbf3d8' : '#22352a'" stroke="#c2603d" stroke-width="1" /></template></g>
       <rect v-if="ownership?.[p] !== null && ownership?.[p] !== undefined && (stone === null || dead.includes(p))" :x="xy(p).x-radius*.3" :y="xy(p).y-radius*.3" :width="radius*.6" :height="radius*.6" :fill="ownership[p] === 0 ? '#34462d' : '#fffdf0'" stroke="#8f916e" stroke-width=".5" pointer-events="none" />
       <path v-if="dead.includes(p)" :d="`M${xy(p).x-radius*.4} ${xy(p).y-radius*.4}l${radius*.8} ${radius*.8}m0 ${-radius*.8}l${-radius*.8} ${radius*.8}`" fill="none" stroke="#ae4b39" stroke-width="2" pointer-events="none" />
       <circle v-if="selected === p && stone === null" :cx="xy(p).x" :cy="xy(p).y" :r="radius" :fill="previewSide === 0 ? '#233b2b' : '#fffef2'" opacity=".6" stroke="#9c7234" stroke-width="2" pointer-events="none" />
+      <g v-if="stone === null && forbidden.has(p)" class="stone-forbidden" :data-forbidden="forbidden.get(p)" :transform="`translate(${xy(p).x} ${xy(p).y})`" pointer-events="none" aria-hidden="true">
+        <circle r="8" fill="#f3d59d" /><path d="M-4 -4L4 4M4 -4L-4 4" fill="none" stroke="#a5382a" stroke-width="2.6" stroke-linecap="round" />
+      </g>
       <circle v-if="winningLine.includes(p)" :cx="xy(p).x" :cy="xy(p).y" :r="radius*.72" fill="none" stroke="#d2aa54" stroke-width="2" pointer-events="none" />
     </g>
   </svg>
