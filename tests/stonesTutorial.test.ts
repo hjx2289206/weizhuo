@@ -28,6 +28,6 @@ test('Tutorial socket supports Go course selection and Gomoku and rejects gamepl
   try { const advanced=await request({id:'start',type:'start',game:'go',level:'advanced'}); assert.equal(advanced.level,'advanced'); assert.equal(advanced.total,9)
     assert.equal((await request({id:'act',type:'stoneMove',point:40,version:0})).type,'tutorial-error')
     assert.equal((await request({id:'bad',type:'start',game:'go',level:'unknown'})).type,'tutorial-error')
-    const gomoku=await request({id:'gomoku',type:'start',game:'gomoku'}); assert.equal(gomoku.total,10)
+    const gomoku=await request({id:'gomoku',type:'start',game:'gomoku'}); assert.equal(gomoku.total,13)
   } finally {ws.close();await once(ws,'close');await new Promise<void>(resolve=>server.close(()=>resolve()))}
 })

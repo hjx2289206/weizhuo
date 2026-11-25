@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import type { Card, StoneGameFields } from '../../shared/protocol'
-import { GO_SIZES, gomokuLine, playGo, scoreGo, stoneCoordinate, stoneGroup, stonePositionKey, stoneSideName, validStonePoint, type StoneBoard, type StoneKind, type StoneMove, type StoneSide } from '../../shared/stones'
+import { GO_SIZES, gomokuLine, isGomokuRule, playGo, renjuForbidden, renjuForbiddenText, scoreGo, stoneCoordinate, stoneGroup, stonePositionKey, stoneSideName, validStonePoint, type GomokuRule, type StoneBoard, type StoneKind, type StoneMove, type StoneSide } from '../../shared/stones'
 import { BoardUndo } from './boardUndo'
 import type { GameCommandOptions, GameCommandType, GameResult, RoomGame } from './types'
 
 /** Trusted local diagrams for tests/tutorials only. Room payloads never reach this constructor. */
-export interface StoneSetup { size?: number; board?: StoneBoard; turn?: StoneSide; history?: string[] }
+export interface StoneSetup { size?: number; board?: StoneBoard; turn?: StoneSide; history?: string[]; rule?: GomokuRule }
 
 interface GoUndoPosition {
   board: StoneBoard
@@ -18,6 +18,7 @@ export class StoneGame implements RoomGame {
   readonly seatCount = 2 as const
   phase: 'lobby' | 'playing' | 'finished' = 'lobby'
   private size: number
+  private rule: GomokuRule
   private board: StoneBoard
   private turn: StoneSide
   private positions: Set<string>
@@ -38,6 +39,7 @@ export class StoneGame implements RoomGame {
   private winningLine: number[] = []
   constructor(readonly kind: StoneKind, setup: StoneSetup = {}) {
     this.size = setup.size ?? (kind === 'go' ? 9 : 15)
+    this.rule = setup.rule ?? 'freestyle'
     if (kind === 'go' ? !GO_SIZES.includes(this.size as 9) : this.size !== 15) throw new Error('棋盘大小无效')
     this.board = setup.board ? [...setup.board] : Array(this.size ** 2).fill(null)
     if (this.board.length !== this.size ** 2 || this.board.some(side => side !== null && side !== 0 && side !== 1)) throw new Error('教学棋盘无效')
@@ -47,6 +49,12 @@ export class StoneGame implements RoomGame {
   setSize(size: unknown): GameResult {
     if (this.kind !== 'go' || this.phase !== 'lobby' || !GO_SIZES.includes(size as 9)) return { ok: false, message: '只能在围棋准备页选择 9、13、19 路' }
     this.size = size as number; this.board = Array(this.size ** 2).fill(null); this.positions = new Set([stonePositionKey(this.board)])
+    return { ok: true }
+  }
+  setRule(rule: unknown): GameResult {
+    if (this.kind !== 'gomoku' || this.phase !== 'lobby') return { ok: false, message: '只能在五子棋准备页更改规则' }
+    if (!isGomokuRule(rule)) return { ok: false, message: '请选择无禁手或黑方禁手' }
+    this.rule = rule
     return { ok: true }
   }
   start(): void {
@@ -107,12 +115,18 @@ export class StoneGame implements RoomGame {
       if (this.positions.has(key)) return fail('打劫／同形再现：不能落成此前出现过的盘面，请先在别处行棋')
       this.board = result.board; captured = result.captured; this.positions.add(key); this.captured[seat] += captured.length
       addedKey = key
-    } else this.board[point] = seat
+    } else {
+      if (this.rule === 'renju' && seat === 0) {
+        const forbidden = renjuForbidden(this.board, point, this.size)
+        if (forbidden) return fail(renjuForbiddenText(forbidden))
+      }
+      this.board[point] = seat
+    }
     this.moves.push({ ply: this.moves.length + 1, side: seat, point, captured, notation: `${stoneCoordinate(point, this.size)}${captured.length ? ` · 提 ${captured.length} 子` : ''}` })
     this.passes = 0; this.turn = seat === 0 ? 1 : 0; this.undo.undoOffer = null
     if (this.kind === 'go') this.saveGoPosition(addedKey)
     if (this.kind === 'gomoku') {
-      this.winningLine = gomokuLine(this.board, point, this.size)
+      this.winningLine = gomokuLine(this.board, point, this.size, this.rule)
       if (this.winningLine.length) this.finish(seat, `${stoneSideName(seat)}连成 ${this.winningLine.length} 子`)
       else if (this.board.every(side => side !== null)) this.finish(null, '棋盘已满，双方均未连成五子')
     }
@@ -142,6 +156,7 @@ export class StoneGame implements RoomGame {
   view(): StoneGameFields {
     return { game: this.kind, phase: this.phase, turn: this.phase === 'playing' && this.stage === 'play' ? this.turn : null, lastPlay: null, tablePlays: [], trickStartIndex: 0,
       stones: structuredClone({ round: this.round, roundId: this.roundId, size: this.size, board: this.board, moves: this.moves, stage: this.stage, passes: this.passes,
+        ...(this.kind === 'gomoku' ? { rule: this.rule } : {}),
         captured: this.captured, dead: [...this.dead].sort((a,b) => a-b), confirmed: this.confirmed, scoreRevision: this.scoreRevision,
         score: this.kind === 'go' && this.stage === 'scoring' ? scoreGo(this.board, this.size, [...this.dead]) : null,
         winner: this.winner, draw: this.draw, reason: this.reason, winningLine: this.winningLine, ...this.undo }) }

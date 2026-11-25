@@ -2,6 +2,7 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { GAME_DEFINITIONS, isBoardGame } from '../../shared/gameCatalog'
 import { QUICK_PHRASES } from '../../shared/phrases'
+import { GOMOKU_RULES } from '../../shared/stones'
 import type { Snapshot } from '../../shared/protocol'
 import type { GameController } from '../useGame'
 import { resultFromSnapshot, resultSeatLabel } from '../resultHistory'
@@ -87,6 +88,7 @@ function say(id: string): void {
     <p v-else class="spectator-status" role="status">{{ room.boardAi?.thinking ? '电脑正在思考' : room.message }}</p>
 
     <template v-if="room">
+      <p v-if="room.game === 'gomoku'" class="spectator-status">{{ GOMOKU_RULES[room.stones.rule ?? 'freestyle'] }}</p>
       <CardTableBoard v-if="!boardGame && phoneLayout" class="spectator-phone-table" :state="room" :deal="deal" self-hint="">
         <GuandanExchangeNotice v-if="room.game === 'guandan'" :view="guandan" />
       </CardTableBoard>
@@ -96,7 +98,7 @@ function say(id: string): void {
         <ChessBoard v-else-if="room.game === 'chess'" :board="room.chess.board" :side="0" :targets="[]" :selected="null" :last="room.chess.moves.at(-1)" :checked="room.chess.check" disabled />
         <JunqiFourBoard v-else-if="room.game === 'junqi' && room.junqi.variant === 'four'" :board="room.junqi.board" :side="0" :targets="[]" :selected="null" :last="room.junqi.moves.at(-1)" disabled />
         <JunqiBoard v-else-if="room.game === 'junqi'" :board="room.junqi.board" :side="0" :targets="[]" :selected="null" :last="room.junqi.moves.at(-1)" disabled />
-        <StoneBoard v-else-if="room.game === 'go' || room.game === 'gomoku'" :board="room.stones.board" :size="room.stones.size" :last="room.stones.moves.at(-1)?.point" :dead="room.stones.dead" :winning-line="room.stones.winningLine" disabled />
+        <StoneBoard v-else-if="room.game === 'go' || room.game === 'gomoku'" :board="room.stones.board" :size="room.stones.size" :last="room.stones.moves.at(-1)?.point" :dead="room.stones.dead" :winning-line="room.stones.winningLine" :renju-board="room.game === 'gomoku' && room.stones.rule === 'renju' && room.turn === 0 ? room.stones.board : null" disabled />
         <ReversiBoard v-else-if="room.game === 'reversi'" :board="room.reversi.board" :last="room.reversi.moves.filter(move => move.point !== null).at(-1)" disabled />
       </section>
 

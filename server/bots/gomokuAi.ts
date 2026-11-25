@@ -1,11 +1,12 @@
 import type { BoardAiDifficulty } from '../../shared/boardAi'
-import type { StoneBoard, StoneSide } from '../../shared/stones'
+import { createRenjuAnalyzer, type GomokuRule, type RenjuThreat, type StoneBoard, type StoneSide } from '../../shared/stones'
 
 export interface GomokuPosition {
   board: StoneBoard
   size: number
   toMove: StoneSide
   history: number[]
+  rule?: GomokuRule
 }
 
 export const GOMOKU_PROFILES = {
@@ -117,9 +118,11 @@ interface Threat {
   openFours: number
   score: number
 }
+const NO_THREAT: Threat = { win: false, replies: 0, openThrees: 0, openFours: 0, score: 0 }
 
 interface RatedMove {
   point: number
+  legal: boolean
   attack: Threat
   defense: Threat
   order: number
@@ -149,6 +152,7 @@ class GomokuSearch {
   private readonly nearby: Int16Array
   private readonly keys: bigint[]
   private readonly center: number
+  private readonly renju?: ReturnType<typeof createRenjuAnalyzer>
   private readonly table = new Map<bigint, TableEntry>()
   private hash = 0n
   private occupied = 0
@@ -166,6 +170,10 @@ class GomokuSearch {
     this.nearby = new Int16Array(this.board.length)
     this.keys = zobristKeys(this.board.length * 2 + 1)
     position.board.forEach((side, point) => { if (side !== null) this.place(point, side) })
+    if (position.rule === 'renju') this.renju = createRenjuAnalyzer(position.size, p => {
+      const token = this.board[p]
+      return token === 1 ? 0 : token === 2 ? 1 : null
+    })
   }
 
   private place(point: number, side: StoneSide): void {
@@ -182,15 +190,22 @@ class GomokuSearch {
     for (const neighbor of this.points[point]!.neighbors) this.nearby[neighbor]!--
   }
 
-  private threat(point: number, side: StoneSide): Threat {
+  private threat(point: number, side: StoneSide, renju?: RenjuThreat): Threat {
+    if (renju?.forbidden) return NO_THREAT
+    if (renju?.win) return { ...NO_THREAT, win: true, score: SHAPE_WEIGHT[SHAPE.five]! }
     let win = false, replies = 0, openThrees = 0, openFours = 0, score = 0
-    for (const line of this.points[point]!.lines) {
+    for (const [axis, line] of this.points[point]!.lines.entries()) {
       let code = 0
       for (let index = 0; index < POWERS.length; index++) {
         const token = this.board[line[index]!]
         if (token !== 0) code += (token === side + 1 ? 1 : 2) * POWERS[index]!
       }
-      const pattern = shape(code)
+      const raw = shape(code)
+      // Keep the freestyle heuristics for short patterns, but take Renju forcing patterns
+      // from the same full-board analysis that controls black's move legality.
+      const pattern = !renju ? raw : renju.replies[axis] === 2 ? SHAPE.openFour
+        : renju.replies[axis] === 1 ? SHAPE.four : renju.openThrees[axis] ? SHAPE.openThree
+        : raw <= SHAPE.openTwo ? raw : SHAPE.none
       score += SHAPE_WEIGHT[pattern]!
       if (pattern === SHAPE.five) win = true
       if (pattern === SHAPE.openFour) { replies += 2; openFours++ }
@@ -204,9 +219,11 @@ class GomokuSearch {
 
   private rated(side: StoneSide, ignoreOpenThree = false): RatedMove[] {
     const rated: RatedMove[] = []
-    for (let point = 0; point < this.board.length; point++) {
-      if (this.board[point] !== 0 || this.nearby[point] === 0) continue
-      const attack = this.threat(point, side), defense = this.threat(point, other(side))
+    const rate = (point: number): RatedMove => {
+      const black = this.renju?.analyze(point)
+      const legal = side === 1 || !black?.forbidden
+      const attack = this.threat(point, side, side === 0 ? black : undefined)
+      const defense = this.threat(point, other(side), side === 1 ? black : undefined)
       let defenseScore = defense.score
       if (ignoreOpenThree) {
         // An existing live three receives its highest score at the point that extends it to an open four.
@@ -214,13 +231,22 @@ class GomokuSearch {
         defenseScore -= defense.openThrees * SHAPE_WEIGHT[SHAPE.openThree]! + (defense.openThrees >= 2 ? 1000 : 0)
       }
       const order = attack.score + defenseScore * 1.08 + this.points[point]!.center
-      rated.push({ point, attack, defense, order })
+      return { point, legal, attack, defense, order }
+    }
+    for (let point = 0; point < this.board.length; point++) {
+      if (this.board[point] === 0 && this.nearby[point] !== 0) rated.push(rate(point))
+    }
+    if (this.renju && side === 0 && !rated.some(move => move.legal)) {
+      for (let point = 0; point < this.board.length; point++) {
+        if (this.board[point] === 0 && this.nearby[point] === 0) rated.push(rate(point))
+      }
     }
     rated.sort((a, b) => b.order - a.order || a.point - b.point)
     return rated
   }
 
-  private candidates(moves: RatedMove[], side: StoneSide): RatedMove[] {
+  private candidates(rated: RatedMove[], side: StoneSide): RatedMove[] {
+    const moves = this.renju && side === 0 ? rated.filter(move => move.legal) : rated
     if (this.difficulty === 'beginner') return moves
     const ownWins = moves.filter(move => move.attack.win)
     if (ownWins.length) return ownWins
@@ -231,17 +257,20 @@ class GomokuSearch {
     if (this.difficulty === 'easy') return moves
 
     // Blocking an open three can mean covering its extension or taking one of its future ends.
-    const threats = moves.filter(move => move.defense.replies >= 2)
+    const threats = rated.filter(move => move.defense.replies >= 2)
     if (!threats.length) return moves
     const responses = moves.filter(move => {
       // A four forces a reply and can buy time to win or answer the open three.
       if (move.attack.replies > 0) return true
       this.board[move.point] = side + 1
-      const blocked = threats.every(threat => threat.point === move.point || this.threat(threat.point, other(side)).replies < 2)
+      const blocked = threats.every(threat => threat.point === move.point ||
+        this.threat(threat.point, other(side), side === 1 ? this.renju?.analyze(threat.point) : undefined).replies < 2)
       this.board[move.point] = 0
       return blocked
     })
-    return responses.length ? responses : threats
+    if (responses.length) return responses
+    const blocks = threats.filter(move => move.legal)
+    return blocks.length ? blocks : moves
   }
 
   private evaluate(moves: RatedMove[]): number {
@@ -260,10 +289,12 @@ class GomokuSearch {
 
     const moves = this.rated(side)
     if (moves.some(move => move.attack.win)) return MATE - ply
-    if (moves.filter(move => move.defense.win).length >= 2) return -MATE + ply + 1
+    const threats = moves.filter(move => move.defense.win)
+    if (threats.length >= 2 || threats.some(move => !move.legal)) return -MATE + ply + 1
     if (depth === 0) return this.evaluate(moves)
 
     const candidates = this.candidates(moves, side).slice(0, this.profile.candidates)
+    if (!candidates.length) return 0
     const preferred = candidates.findIndex(move => move.point === entry?.point)
     if (preferred > 0) candidates.unshift(candidates.splice(preferred, 1)[0]!)
     const initialAlpha = alpha
@@ -292,7 +323,7 @@ class GomokuSearch {
     if (depth < 3) return null
     const counters = moves.filter(move => move.defense.win)
     if (counters.length > 1) return null
-    const attacks = moves.filter(move => move.attack.replies && (!counters.length || move.point === counters[0]!.point))
+    const attacks = moves.filter(move => move.legal && move.attack.replies && (!counters.length || move.point === counters[0]!.point))
     for (const { point } of attacks.slice(0, this.profile.candidates)) {
       if (expired()) return null
       this.place(point, side)
@@ -300,7 +331,7 @@ class GomokuSearch {
       const winningReplies = responses.filter(move => move.defense.win)
       let proven = false
       if (!responses.some(move => move.attack.win)) {
-        if (winningReplies.length >= 2) proven = true
+        if (winningReplies.length >= 2 || winningReplies.some(move => !move.legal)) proven = true
         else if (winningReplies.length === 1) {
           const block = winningReplies[0]!.point
           this.place(block, other(side))
@@ -320,6 +351,7 @@ class GomokuSearch {
     const beginner = this.difficulty === 'beginner', easy = this.difficulty === 'easy'
     const rated = this.rated(side, beginner && random() < 0.3)
     const moves = this.candidates(rated, side).slice(0, this.profile.candidates)
+    if (!moves.length) return null
     if (moves.length === 1) return moves[0]!.point
     if (beginner) {
       const weights = [4, 3, 2, 1].slice(0, moves.length)

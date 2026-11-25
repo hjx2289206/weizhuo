@@ -369,6 +369,7 @@ export type ClientPayload =
   | { action: import('./boardUndo').BoardUndoAction }
   | { point: number }
   | { size: number }
+  | { rule: import('./stones').GomokuRule }
   | { action: 'mark' | 'confirm' | 'resume'; point?: number; side?: 0 | 1; revision?: number; roundId?: string }
   | { enabled: boolean; side?: 0 | 1; difficulty?: import('./boardAi').BoardAiDifficulty }
   | { action: 'offer' | 'accept' | 'decline' | 'agree'; side?: 0 | 1 }

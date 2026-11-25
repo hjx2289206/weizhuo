@@ -52,8 +52,8 @@ export const BOARD_AI_ADAPTERS: Record<BoardAiGame, BoardAiAdapter> = {
   xiangqi: adapter('xiangqi', 'xiangqiMove', 'xiangqiResign', view => view.xiangqi, boardSearchPosition, uciPayload),
   gomoku: adapter('gomoku', 'stoneMove', 'stoneResign', view => view.stones, view => {
     if (view.turn !== 0 && view.turn !== 1) throw new Error('当前局面没有行棋方')
-    const { board, size, moves } = view.stones
-    return { kind: 'gomoku', game: 'gomoku', board, size, toMove: view.turn, history: moves.flatMap(move => move.point === null ? [] : [move.point]) }
+    const { board, size, moves, rule } = view.stones
+    return { kind: 'gomoku', game: 'gomoku', board, size, rule, toMove: view.turn, history: moves.flatMap(move => move.point === null ? [] : [move.point]) }
   }, move => {
     if (move.kind !== 'gomoku') throw new Error('引擎返回的走法类型无效')
     return { point: move.point }
