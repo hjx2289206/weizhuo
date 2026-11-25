@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { BOARD_UNDO_LIMIT, boardUndoTarget, type BoardUndoClientAction, type BoardUndoSide, type BoardUndoView } from '../../shared/boardUndo'
+import { BOARD_UNDO_LIMIT, boardUndoTarget, type BoardUndoClientAction, type BoardUndoMove, type BoardUndoSide, type BoardUndoView } from '../../shared/boardUndo'
 import AppIcon from './AppIcon.vue'
 import DialogShell from './DialogShell.vue'
 
 const props = defineProps<{
-  board: BoardUndoView & { moves: readonly { side: BoardUndoSide }[] }
+  board: BoardUndoView & { moves: readonly BoardUndoMove[] }
   side: BoardUndoSide | null
   sideName: (side: number) => string
   shared: boolean
@@ -16,7 +16,11 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ action: [action: BoardUndoClientAction] }>()
 const confirmOpen = ref(false)
-const proposer = computed(() => props.shared && !props.computer ? props.board.moves.at(-1)?.side ?? null : props.side)
+const proposer = computed(() => {
+  if (!props.shared || props.computer) return props.side
+  const moves = props.board.moves
+  return moves[boardUndoTarget(moves)]?.side ?? null
+})
 const remaining = computed(() => proposer.value === null ? BOARD_UNDO_LIMIT : BOARD_UNDO_LIMIT - props.board.undoUsed[proposer.value])
 const canRequest = computed(() => !props.disabled && !props.drawPending && proposer.value !== null &&
   (props.computer || remaining.value > 0) && boardUndoTarget(props.board.moves, proposer.value) >= 0)

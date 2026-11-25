@@ -3,13 +3,12 @@ import type { BoardUndoSide, BoardUndoView } from './boardUndo'
 export type ReversiSide = BoardUndoSide
 export type ReversiBoard = (ReversiSide | null)[]
 
-export interface ReversiMove {
+export type ReversiMove = {
   ply: number
   side: ReversiSide
-  point: number | null
   flipped: number[]
   notation: string
-}
+} & ({ point: number; undoable?: never } | { point: null; undoable: false })
 
 export interface ReversiView extends BoardUndoView {
   round: number

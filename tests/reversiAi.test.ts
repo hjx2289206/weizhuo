@@ -23,6 +23,8 @@ function seeded(seed: number): () => number {
   }
 }
 
+const exactLevels = ['normal', 'hard', 'challenge'] as const
+
 test('All five Reversi profiles pick a legal move, preserve input and support fixed randomness', () => {
   const board = applyMove(initialReversiBoard(), 0, 19)!.board
   const original = [...board]
@@ -41,7 +43,7 @@ test('Normal and stronger Reversi profiles choose an available corner in the mid
   const board = initialReversiBoard()
   board[1] = 1; board[2] = 0
   assert.ok(legalMoves(board, 0).length > 1)
-  for (const id of ['normal', 'hard', 'challenge'] as const) assert.equal(chooseReversiMove({ board, toMove: 0 }, id), 0)
+  for (const id of exactLevels) assert.equal(chooseReversiMove({ board, toMove: 0 }, id), 0)
 })
 
 function brute(board: ReversiBoard, side: ReversiSide, passed = false): number {
@@ -64,7 +66,7 @@ for (const [index, text] of endgames.entries()) {
     const board = diagram(text)
     assert.ok(board.filter(cell => cell === null).length <= 10)
     const optimal = brute(board, 0)
-    for (const { id } of BOARD_AI_DIFFICULTIES) {
+    for (const id of exactLevels) {
       // A tiny simulated midgame budget deliberately cannot truncate exact reading.
       let time = 0
       const move = chooseReversiMove({ board, toMove: 0 }, id, { now: () => time += 1000 })
@@ -74,6 +76,22 @@ for (const [index, text] of endgames.entries()) {
     }
   })
 }
+
+test('With twelve empty squares Reversi keeps the two lowest profiles varied and solves exactly from normal up', () => {
+  const board = diagram('O.OOOOOOOOOOOOOO.OO.OOOOOO.OOO.OO..OO.XOOOOO..OOOOO.O.OOOOOXOOOO')
+  const position = { board, toMove: 1 } as const
+  assert.equal(board.filter(cell => cell === null).length, 12)
+  const margins = legalMoves(board, 1).map(point => [point, -brute(applyMove(board, 1, point)!.board, 0)])
+  assert.deepEqual(margins, [[30, 53], [37, 57], [45, 51]])
+  for (const id of exactLevels) {
+    assert.equal(chooseReversiMove(position, id), 37, id)
+  }
+  for (const id of ['beginner', 'easy'] as const) {
+    const choices = [1, 1234].map(seed => chooseReversiMove(position, id, { random: seeded(seed), now: () => 0 }))
+    assert.ok(choices.every(point => margins.some(([legal]) => legal === point)), id)
+    assert.notEqual(choices[0], choices[1], id)
+  }
+})
 
 function client(name: string) {
   let state: Snapshot | undefined

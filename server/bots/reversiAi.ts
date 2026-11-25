@@ -7,11 +7,11 @@ import {
 export interface ReversiPosition { board: ReversiBoard; toMove: ReversiSide }
 
 export const REVERSI_PROFILES = {
-  beginner: { candidates: 8, depth: 1, milliseconds: 100, choices: 4 },
-  easy: { candidates: 10, depth: 2, milliseconds: 200, choices: 2 },
-  normal: { candidates: 12, depth: 4, milliseconds: 500, choices: 1 },
-  hard: { candidates: 15, depth: 6, milliseconds: 1000, choices: 1 },
-  challenge: { candidates: 20, depth: Infinity, milliseconds: 2000, choices: 1 },
+  beginner: { candidates: 8, depth: 1, milliseconds: 100, choices: 4, solveEndgame: false },
+  easy: { candidates: 10, depth: 2, milliseconds: 200, choices: 2, solveEndgame: false },
+  normal: { candidates: 12, depth: 4, milliseconds: 500, choices: 1, solveEndgame: true },
+  hard: { candidates: 15, depth: 6, milliseconds: 1000, choices: 1, solveEndgame: true },
+  challenge: { candidates: 20, depth: Infinity, milliseconds: 2000, choices: 1, solveEndgame: true },
 } as const
 
 const ENDGAME_EMPTY = 12
@@ -172,5 +172,6 @@ export function chooseReversiMove(
   const legal = reversiLegalMask(own, opponent)
   if (!legal) return null
   const empty = REVERSI_AREA - reversiBitCount((own | opponent) & REVERSI_FULL)
-  return new ReversiSearch(difficulty, empty <= ENDGAME_EMPTY, now).choose(own, opponent, legal, empty, random)
+  const exact = REVERSI_PROFILES[difficulty].solveEndgame && empty <= ENDGAME_EMPTY
+  return new ReversiSearch(difficulty, exact, now).choose(own, opponent, legal, empty, random)
 }

@@ -61,10 +61,6 @@ const lastPlacement = computed(() => snapshot.value?.reversi.moves.filter(move =
 const moveCount = computed(() => snapshot.value?.reversi.moves.length ?? 0)
 const pageCount = computed(() => Math.max(1, Math.ceil(moveCount.value / pageSize)))
 const moves = computed(() => snapshot.value?.reversi.moves.slice(page.value * pageSize, (page.value + 1) * pageSize) ?? [])
-const undoBoard = computed(() => {
-  const view = snapshot.value!.reversi
-  return computer.value ? { ...view, moves: view.moves.filter(move => move.point !== null) } : view
-})
 watch(() => snapshot.value?.version, () => { selected.value = null })
 watch(pageCount, count => { page.value = Math.min(page.value, count - 1) })
 watch(() => snapshot.value?.reversi.roundId, () => { historyOpen.value = false; resignOpen.value = false; page.value = 0 })
@@ -149,8 +145,8 @@ async function copy(seat: number): Promise<void> {
         <div v-else-if="snapshot.phase === 'playing'" class="reversi-actions">
           <button class="button primary reversi-place" :disabled="!canPlay || selected === null" @click="place">确认落子</button>
           <button class="button secondary" :disabled="!canAct" @click="resignSide = side ?? (snapshot.turn === 1 ? 1 : 0); resignOpen = true">认输</button>
-          <BoardUndoControl :board="undoBoard" :side="side" :shared="shared" :computer="!!computer" :side-name="reversiSideName"
-            :disabled="!canAct || thinking" :confirm-description="last?.point === null ? '撤销停一手及触发它的落子' : undefined" @action="action => run(() => game.boardUndo(action))" />
+          <BoardUndoControl :board="snapshot.reversi" :side="side" :shared="shared" :computer="!!computer" :side-name="reversiSideName"
+            :disabled="!canAct || thinking" :confirm-description="last?.point === null ? '撤销上一手落子及随后的自动停一手' : undefined" @action="action => run(() => game.boardUndo(action))" />
         </div>
         <div v-else class="reversi-actions">
           <button v-if="snapshot.isHost" class="button primary" :disabled="locked" @click="run(game.again)">再来一局</button>

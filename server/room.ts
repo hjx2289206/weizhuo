@@ -658,7 +658,7 @@ export class Room {
     let seat: BoardUndoSide | undefined;
     if (this.sharedChess) {
       if (!this.isHost(peer)) return this.fail(peer, id, '请在创建本局的平板上操作');
-      seat = computer ? (computer.side === 0 ? 1 : 0) : board.moves.at(-1)?.side;
+      seat = computer ? (computer.side === 0 ? 1 : 0) : board.moves[boardUndoTarget(board.moves)]?.side;
     } else {
       const player = this.requiredPlayer(peer, id);
       if (!player) return false;

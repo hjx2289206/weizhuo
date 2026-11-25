@@ -1,4 +1,4 @@
-import { BOARD_UNDO_LIMIT, boardUndoTarget, type BoardUndoSide, type BoardUndoView } from '../../shared/boardUndo'
+import { BOARD_UNDO_LIMIT, boardUndoTarget, type BoardUndoMove, type BoardUndoSide, type BoardUndoView } from '../../shared/boardUndo'
 import type { GameResult } from './types'
 
 export class BoardUndo implements BoardUndoView {
@@ -8,7 +8,7 @@ export class BoardUndo implements BoardUndoView {
   command(
     seat: BoardUndoSide,
     action: unknown,
-    moves: readonly { side: BoardUndoSide }[],
+    moves: readonly BoardUndoMove[],
     rollback: (target: number) => void,
     unlimited: boolean,
   ): GameResult {
