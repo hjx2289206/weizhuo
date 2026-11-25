@@ -5,7 +5,7 @@
 // never contains a rule of a specific game, and the engine never sees a peer, socket or token.
 
 import { randomBytes } from 'node:crypto';
-import { supportsRoomMode, isBoardGame, GAME_DEFINITIONS } from '../shared/gameCatalog';
+import { supportsRoomMode, isBlackFirstGame, isBoardGame, GAME_DEFINITIONS } from '../shared/gameCatalog';
 import { dealDuration } from '../shared/dealAnimation';
 import type {
   Card,
@@ -42,6 +42,7 @@ import { JunqiGame } from './games/junqi';
 import { XiangqiGame } from './games/xiangqi';
 import { ChessGame } from './games/chess';
 import { StoneGame } from './games/stones';
+import { ReversiGame } from './games/reversi';
 import { stoneSideName } from '../shared/stones';
 import { BOARD_AI_DIFFICULTIES, boardAiLabel, isBoardAiDifficulty, isBoardAiGame, type BoardAiConfig } from '../shared/boardAi';
 import { boardUndoTarget, type BoardUndoSide } from '../shared/boardUndo';
@@ -72,6 +73,7 @@ const ENGINE_FACTORIES: Record<GameKind, (context: GameContext) => RoomGame> = {
   xiangqi: () => new XiangqiGame(),
   go: () => new StoneGame('go'),
   gomoku: () => new StoneGame('gomoku'),
+  reversi: () => new ReversiGame(),
   chess: () => new ChessGame(),
   junqi: () => new JunqiGame(),
 };
@@ -87,6 +89,7 @@ const PHONE_SEATS: Record<GameKind, readonly Position[]> = {
   chess: TWO_SEATS,
   go: TWO_SEATS,
   gomoku: TWO_SEATS,
+  reversi: TWO_SEATS,
   xiangqi: TWO_SEATS,
   junqi: TWO_SEATS,
   doudizhu: [
@@ -567,6 +570,7 @@ export class Room {
       case 'chessUndo':
       case 'xiangqiUndo':
       case 'stoneUndo':
+      case 'reversiUndo':
         return this.boardUndo(peer, type, payload.action, id);
       case 'boardAi':
         return this.configureBoardAi(peer, payload, id);
@@ -618,6 +622,8 @@ export class Room {
       case 'bid':
       case 'chessMove':
       case 'stoneMove':
+      case 'reversiMove':
+      case 'reversiResign':
       case 'stonePass':
       case 'stoneResign':
       case 'stoneScore':
@@ -639,11 +645,12 @@ export class Room {
     }
   }
 
-  private boardUndo(peer: Peer, type: 'chessUndo' | 'xiangqiUndo' | 'stoneUndo', action: unknown, id: string): boolean {
+  private boardUndo(peer: Peer, type: 'chessUndo' | 'xiangqiUndo' | 'stoneUndo' | 'reversiUndo', action: unknown, id: string): boolean {
     if (action === 'direct') return this.fail(peer, id, '请使用悔棋请求');
     const view = this.engine.view(null);
     const board = view.game === 'chess' && type === 'chessUndo' ? view.chess
       : view.game === 'xiangqi' && type === 'xiangqiUndo' ? view.xiangqi
+      : view.game === 'reversi' && type === 'reversiUndo' ? view.reversi
       : (view.game === 'go' || view.game === 'gomoku') && type === 'stoneUndo' ? view.stones : null;
     if (!board) return this.fail(peer, id, '本游戏不支持这个操作');
 
@@ -705,6 +712,14 @@ export class Room {
       const adapter = BOARD_AI_ADAPTERS[kind];
       if (this.sharedChess && type === adapter.move && this.engine.view(null).turn === computer.side) return this.fail(peer, id, '轮到电脑行棋，请稍候');
       if (this.sharedChess && type === adapter.resign && payload.side === computer.side) return this.fail(peer, id, '只能替自己认输');
+    }
+    if (this.sharedChess && this.engine instanceof ReversiGame) {
+      if (!this.isHost(peer)) return this.fail(peer, id, '请在创建本局的平板上操作');
+      if (type !== 'reversiMove' && type !== 'reversiResign') return this.fail(peer, id, '黑白棋不支持这个操作');
+      const side = type === 'reversiMove' ? this.engine.view().turn : payload.side;
+      if (side !== 0 && side !== 1) return this.fail(peer, id, '请选择操作的一方');
+      const result = this.engine.command(side, type, payload);
+      return result.ok || this.fail(peer, id, result.message);
     }
     if (this.sharedChess && this.engine instanceof StoneGame) {
       if (!this.isHost(peer)) return this.fail(peer, id, '请在创建本局的平板上操作');
@@ -973,7 +988,7 @@ export class Room {
       roundId: board.roundId, ply: board.ply, side: config.side, epoch: this.automationEpoch, difficulty: config.difficulty,
     };
     this.pendingBoardAi = pending;
-    pending.timer = setTimeout(() => void this.runBoardAi(pending), 300); pending.timer.unref();
+    pending.timer = setTimeout(() => void this.runBoardAi(pending), board.delayMs); pending.timer.unref();
     // Includes queue time: a busy or hung engine never leaves the UI thinking forever.
     pending.guard = setTimeout(() => { if (this.pendingBoardAi === pending) this.failBoardAi('电脑响应超时，请重试'); }, 15000); pending.guard.unref();
   }
@@ -1292,7 +1307,7 @@ export class Room {
 
   private seatList(): Seat[] {
     if (this.sharedChess) return this.positions.map((position, id) => ({
-      id, name: this.boardAiConfig?.side === id ? `电脑·${boardAiLabel(this.boardAiConfig.difficulty)}` : this.engine instanceof StoneGame ? stoneSideName(id) : id === 0 ? this.engine.kind === 'chess' ? '白方' : '红方' : '黑方', connected: this.hostConnected, ready: true,
+      id, name: this.boardAiConfig?.side === id ? `电脑·${boardAiLabel(this.boardAiConfig.difficulty)}` : isBlackFirstGame(this.engine.kind) ? stoneSideName(id) : id === 0 ? this.engine.kind === 'chess' ? '白方' : '红方' : '黑方', connected: this.hostConnected, ready: true,
       count: 0, passed: false, isBot: this.boardAiConfig?.side === id, autoPlay: this.boardAiConfig?.side === id, ...position,
     }));
     return this.positions.map((position, seat) => {
@@ -1343,7 +1358,7 @@ export class Room {
     }
     if (this.paused()) return '有玩家掉线，等待重连';
     const self = this.playerFor(peer);
-    return this.engine.statusText(self ? self.seatId : null, (seat) => this.sharedChess ? this.engine instanceof StoneGame ? stoneSideName(seat) : seat === 0 ? this.engine.kind === 'chess' ? '白方' : '红方' : '黑方' : this.players[seat]?.name ?? `玩家${seat + 1}`);
+    return this.engine.statusText(self ? self.seatId : null, (seat) => this.sharedChess ? isBlackFirstGame(this.engine.kind) ? stoneSideName(seat) : seat === 0 ? this.engine.kind === 'chess' ? '白方' : '红方' : '黑方' : this.players[seat]?.name ?? `玩家${seat + 1}`);
   }
 
   // ---------------------------------------------------------------- identity helpers

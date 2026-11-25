@@ -12,6 +12,7 @@ const props = defineProps<{
   computer?: boolean
   disabled: boolean
   drawPending?: boolean
+  confirmDescription?: string
 }>()
 const emit = defineEmits<{ action: [action: BoardUndoClientAction] }>()
 const confirmOpen = ref(false)
@@ -44,7 +45,7 @@ function confirm(): void {
     <AppIcon name="undo" />{{ !shared && !computer ? '请求悔棋' : '悔棋' }}{{ computer ? '' : `（剩 ${remaining} 次）` }}
   </button>
   <DialogShell v-if="confirmOpen && proposer !== null" :title="`确认${sideName(proposer)}悔棋？`" class="board-undo-dialog" @close="confirmOpen = false">
-    <p>撤销上一手，本局{{ sideName(proposer) }}将用掉一次悔棋机会。</p>
+    <p>{{ confirmDescription ?? '撤销上一手' }}，本局{{ sideName(proposer) }}将用掉一次悔棋机会。</p>
     <button type="button" class="button primary" :disabled="!canRequest" @click="confirm">确认悔棋</button>
   </DialogShell>
 </template>

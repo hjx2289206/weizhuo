@@ -8,9 +8,9 @@ import { readResults } from '../src/resultHistory';
 test('every game is registered once and keeps its hall card and rules tab', () => {
   assert.deepEqual([...GAME_KINDS].sort(), Object.keys(GAME_DEFINITIONS).sort());
   assert.deepEqual([...GAME_KINDS].sort(), Object.keys(GAME_NOTES).sort());
-  assert.deepEqual(GAME_KINDS.filter(isBoardGame), ['xiangqi', 'go', 'gomoku', 'chess', 'junqi']);
+  assert.deepEqual(GAME_KINDS.filter(isBoardGame), ['xiangqi', 'go', 'gomoku', 'reversi', 'chess', 'junqi']);
   assert.deepEqual(GAME_KINDS.filter(game => !isBoardGame(game)), ['doudizhu', 'guandan']);
-  assert.deepEqual(RULE_TABS, ['doudizhu', 'guandan', 'xiangqi', 'chess', 'go', 'gomoku', 'junqi']);
+  assert.deepEqual(RULE_TABS, ['doudizhu', 'guandan', 'xiangqi', 'chess', 'go', 'gomoku', 'reversi', 'junqi']);
   for (const game of GAME_KINDS) assert.ok(GAME_NOTES[game].trim(), game);
 });
 
@@ -36,7 +36,7 @@ test('rooms copy the shared two-seat positions', () => {
 });
 
 test('game validation and saved result parsing accept exactly the registered kinds', () => {
-  const unknownGames = [undefined, null, 0, {}, ['go'], 'constructor', '__proto__', 'GO', 'reversi'];
+  const unknownGames = [undefined, null, 0, {}, ['go'], 'constructor', '__proto__', 'GO', 'checkers'];
   assert.ok(GAME_KINDS.every(isGameKind));
   assert.ok(unknownGames.every(game => !isGameKind(game)));
   const records = [...GAME_KINDS, ...unknownGames].map((game, index) => ({

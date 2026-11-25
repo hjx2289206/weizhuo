@@ -3,7 +3,7 @@ import type { JunqiRank } from './junqi'
 
 export const TUTORIAL_VERSION = 'animation-clips-v2'
 /** Authoring commands are server-owned. The viewing socket never accepts these commands. */
-export type TeachingCommand = 'bid' | 'play' | 'pass' | 'tribute' | 'returnTribute' | 'junqiMove' | 'junqiResign' | 'xiangqiMove' | 'xiangqiResign' | 'xiangqiDraw' | 'chessMove' | 'chessResign' | 'chessDraw' | 'stoneMove' | 'stonePass' | 'stoneScore' | 'stoneResign' | 'continue'
+export type TeachingCommand = 'bid' | 'play' | 'pass' | 'tribute' | 'returnTribute' | 'junqiMove' | 'junqiResign' | 'xiangqiMove' | 'xiangqiResign' | 'xiangqiDraw' | 'chessMove' | 'chessResign' | 'chessDraw' | 'stoneMove' | 'stonePass' | 'stoneScore' | 'stoneResign' | 'reversiMove' | 'continue'
 export type TeachingLevel = 'basic' | 'advanced'
 export interface TeachingSource { title: string; url: string; note: string }
 export interface TeachingAction { type: TeachingCommand; seat: number; payload: Record<string, unknown> }

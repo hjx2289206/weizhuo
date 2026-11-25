@@ -5,6 +5,7 @@ import type { JunqiView } from './junqi';
 import type { XiangqiView } from './xiangqi';
 import type { ChessView } from './chess';
 import type { StoneView } from './stones';
+import type { ReversiView } from './reversi';
 export type Suit = 'spade' | 'heart' | 'club' | 'diamond' | 'joker';
 
 /** rank: 3..15 (15 === 2), 16 small joker, 17 big joker. Kept identical for both games. */
@@ -37,7 +38,7 @@ export interface Seat extends Position {
 }
 
 /** Which game a room runs. */
-export type GameKind = 'doudizhu' | 'guandan' | 'junqi' | 'xiangqi' | 'chess' | 'go' | 'gomoku';
+export type GameKind = 'doudizhu' | 'guandan' | 'junqi' | 'xiangqi' | 'chess' | 'go' | 'gomoku' | 'reversi';
 
 /** Doudizhu phases, unchanged apart from living in its own union. */
 export type DoudizhuPhase = 'lobby' | 'bidding' | 'playing' | 'finished';
@@ -300,7 +301,12 @@ interface StoneBaseFields extends GameBaseFields { phase: 'lobby' | 'playing' | 
 export interface GoGameFields extends StoneBaseFields { game: 'go' }
 export interface GomokuGameFields extends StoneBaseFields { game: 'gomoku' }
 export type StoneGameFields = GoGameFields | GomokuGameFields;
-export type GameView = DoudizhuGameFields | GuandanGameFields | JunqiGameFields | XiangqiGameFields | ChessGameFields | StoneGameFields;
+export interface ReversiGameFields extends GameBaseFields {
+  game: 'reversi';
+  phase: 'lobby' | 'playing' | 'finished';
+  reversi: ReversiView;
+}
+export type GameView = DoudizhuGameFields | GuandanGameFields | JunqiGameFields | XiangqiGameFields | ChessGameFields | StoneGameFields | ReversiGameFields;
 
 export type DoudizhuSnapshot = RoomSnapshotFields & DoudizhuGameFields;
 export type GuandanSnapshot = RoomSnapshotFields & GuandanGameFields;
@@ -309,9 +315,11 @@ export type JunqiSnapshot = RoomSnapshotFields & JunqiGameFields;
 export type XiangqiSnapshot = RoomSnapshotFields & XiangqiGameFields;
 export type ChessSnapshot = RoomSnapshotFields & ChessGameFields;
 export type StoneSnapshot = RoomSnapshotFields & StoneGameFields;
-export type Snapshot = DoudizhuSnapshot | GuandanSnapshot | JunqiSnapshot | XiangqiSnapshot | ChessSnapshot | StoneSnapshot;
+export type ReversiSnapshot = RoomSnapshotFields & ReversiGameFields;
+export type Snapshot = DoudizhuSnapshot | GuandanSnapshot | JunqiSnapshot | XiangqiSnapshot | ChessSnapshot | StoneSnapshot | ReversiSnapshot;
 
 export type ClientMessageType =
+  | 'reversiMove' | 'reversiResign' | 'reversiUndo'
   | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneSetup' | 'stoneUndo'
   | 'boardAi' | 'boardAiRetry'
   | 'chessMove' | 'chessResign' | 'chessDraw' | 'chessUndo'

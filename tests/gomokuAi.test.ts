@@ -3,7 +3,7 @@ import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { NativeBoardAiPolicy, type BoardAiMove, type BoardAiPolicy } from '../server/bots/boardAi'
 import { chooseGomokuMove, GOMOKU_PROFILES, type GomokuPosition } from '../server/bots/gomokuAi'
-import { searchGomokuWorker } from '../server/bots/gomokuWorker'
+import { searchBoardWorker } from '../server/bots/boardSearchWorker'
 import { Room, type Peer } from '../server/room'
 import { BOARD_AI_DIFFICULTIES, type BoardAiDifficulty } from '../shared/boardAi'
 import { BOARD_UNDO_LIMIT } from '../shared/boardUndo'
@@ -194,7 +194,8 @@ test('Search deadlines stay within 1.5× each configured budget on a controlled 
 test('Worker search leaves the event loop responsive and terminates when aborted', async () => {
   const signal = new AbortController()
   let settled = false
-  const pending = searchGomokuWorker(position(midgame()), 'challenge', signal.signal)
+  const job = { ...position(midgame()), kind: 'gomoku', game: 'gomoku' } as const
+  const pending = searchBoardWorker(job, 'challenge', signal.signal)
   const rejected = assert.rejects(pending.finally(() => { settled = true }), /思考已取消/)
   try {
     await delay(125)
@@ -204,7 +205,7 @@ test('Worker search leaves the event loop responsive and terminates when aborted
     await rejected
     // Target is 100 ms. Reserve an additional 250 ms for OS scheduling on loaded CI hosts.
     assert.ok(performance.now() - start < 350, 'worker termination exceeded the scheduling allowance')
-    await assert.rejects(searchGomokuWorker(position(midgame()), 'challenge', signal.signal), /思考已取消/)
+    await assert.rejects(searchBoardWorker(job, 'challenge', signal.signal), /思考已取消/)
   } finally { signal.abort(); await rejected.catch(() => {}) }
 })
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { isBlackFirstGame } from '../../shared/gameCatalog'
 import type { GameKind, Seat } from '../../shared/protocol'
 import type { SavedSession } from '../sessionStore'
 import { expectedSeatCount } from '../screens/useGameView'
@@ -124,7 +125,7 @@ const requestStatusText = computed(() => {
 
 function seatLabel(id: number): string {
   const entry = props.roster?.find(candidate => candidate.id === id)
-  const label = props.game === 'go' || props.game === 'gomoku' ? id === 0 ? '黑方' : '白方' : props.game === 'chess' ? id === 0 ? '白方' : '黑方' : props.game === 'xiangqi' ? id === 0 ? '红方' : '黑方' : `${id + 1} 号座`
+  const label = isBlackFirstGame(props.game) ? id === 0 ? '黑方' : '白方' : props.game === 'chess' ? id === 0 ? '白方' : '黑方' : props.game === 'xiangqi' ? id === 0 ? '红方' : '黑方' : `${id + 1} 号座`
   if (!entry) return props.roster ? `${label} · 不存在` : label
   if (!entry.name) return `${label} · 空`
   return `${label} · ${entry.name}（${seatStatus(entry)}）`

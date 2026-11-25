@@ -109,6 +109,15 @@ const GOMOKU: RuleRow[] = [
   UNDO,
   COMPUTER,
 ]
+const REVERSI: RuleRow[] = [
+  { term: '开局与落点', detail: '棋子放在 8×8 棋盘的格子内。中央四格交叉摆黑白各两子，黑方先行。小圆点是合法落点，选格后点“确认落子”。' },
+  { term: '夹住翻子', detail: '在横、竖或斜线上，以新子和已有同色棋子夹住一串对手棋子。所有被夹住的棋子一起翻面，一手可以翻多个方向。' },
+  { term: '停一手与终局', detail: '一方没有可落的格子时自动停一手，由另一方继续。双方都无合法落点或棋盘下满，数盘面棋子，多者胜，相同为和。也可认输。' },
+  { term: '角位', detail: '落定的角子不会翻面。占住一角后，沿它连成的同色边子也能稳定下来。' },
+  UNDO,
+  { term: '自动停一手与悔棋', detail: '停一手计入棋谱。撤销自动停一手时一并撤销触发它的落子，恢复可继续落子的局面。' },
+  COMPUTER,
+]
 const RULE_ROWS: Record<GameKind, RuleRow[]> = {
   doudizhu: DOUDIZHU,
   guandan: GUANDAN,
@@ -116,6 +125,7 @@ const RULE_ROWS: Record<GameKind, RuleRow[]> = {
   chess: CHESS,
   go: GO,
   gomoku: GOMOKU,
+  reversi: REVERSI,
   junqi: JUNQI,
 }
 const tab = ref<GameKind>(props.initialGame ?? 'doudizhu')

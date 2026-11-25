@@ -5,6 +5,7 @@ import { xiangqiPositionKey, xiangqiSideName } from '../../shared/xiangqi'
 import type { XiangqiPlayback } from '../tutorials/xiangqiMotion'
 import XiangqiBoard from './XiangqiBoard.vue'
 import ChessTutorialStage from './ChessTutorialStage.vue'
+import ReversiTutorialStage from './ReversiTutorialStage.vue'
 import StoneTutorialStage from './StoneTutorialStage.vue'
 import { computed } from 'vue'
 import { JUNQI_NAMES, junqiSideName } from '../../shared/junqi'
@@ -132,8 +133,9 @@ function role(n: number): string { const state = snapshot.value; return state.ga
 </script>
 
 <template>
-  <div class="tutorial-animation-stage" :class="{ 'is-chess': chess || xiangqi || snapshot.game === 'chess' || isStoneGame(snapshot.game), 'is-rejected': rejected }" :data-clip-id="clip.id" :data-beat="pos.frameIndex" :data-fraction="pos.fraction.toFixed(3)">
+  <div class="tutorial-animation-stage" :class="{ 'is-chess': chess || xiangqi || snapshot.game === 'chess' || isStoneGame(snapshot.game) || snapshot.game === 'reversi', 'is-rejected': rejected }" :data-clip-id="clip.id" :data-beat="pos.frameIndex" :data-fraction="pos.fraction.toFixed(3)">
     <ChessTutorialStage v-if="snapshot.game === 'chess'" :clip="clip" :elapsed="elapsed" :reduced="reduced" :opposed="opposed" />
+    <ReversiTutorialStage v-else-if="snapshot.game === 'reversi'" :clip="clip" :elapsed="elapsed" :reduced="reduced" />
     <StoneTutorialStage v-else-if="isStoneGame(snapshot.game)" :clip="clip" :elapsed="elapsed" :reduced="reduced" />
     <template v-else-if="xiangqi">
       <div class="clip-chess-context"><span>{{ opposed ? '平板同屏 · 双方棋字各朝自己' : '手机视角 · 所有棋字朝下' }}</span><span>{{ xqCamera === '0 0 500 540' ? '棋盘概览' : '关键区域放大' }}</span></div>

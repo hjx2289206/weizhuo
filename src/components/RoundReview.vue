@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch } from 'vue'
 import type { Snapshot } from '../../shared/protocol'
-import { exportResultImage, resultFromSnapshot } from '../resultHistory'
-import { junqiSideName } from '../../shared/junqi'
-import { chessSideName } from '../../shared/chess'
-import { xiangqiSideName } from '../../shared/xiangqi'
-import { stoneSideName } from '../../shared/stones'
-import { GAME_DEFINITIONS, isBoardGame, isStoneGame } from '../../shared/gameCatalog'
+import { exportResultImage, resultFromSnapshot, resultSeatLabel } from '../resultHistory'
+import { GAME_DEFINITIONS, isBoardGame } from '../../shared/gameCatalog'
 import { GAME_TOOLS } from '../gameTools'
 import AppIcon from './AppIcon.vue'
 import PlayingCard from './PlayingCard.vue'
@@ -81,7 +77,7 @@ async function save(): Promise<void> {
   </section>
   <section v-else-if="result" class="round-review">
     <div class="result-hero"><div class="result-seal" aria-hidden="true"><AppIcon name="trophy" /></div><div class="result-heading"><p class="result-eyebrow">{{ GAME_DEFINITIONS[result.game].name }} · 房间 {{ result.code }}</p><h3>{{ result.title }}</h3><p class="result-caption">{{ result.detail }}</p></div></div>
-    <p class="result-explanation">{{ result.players.map(p => `${isStoneGame(result!.game) ? stoneSideName(p.seat) : result!.game === 'chess' ? chessSideName(p.seat) : result!.game === 'xiangqi' ? xiangqiSideName(p.seat) : junqiSideName(p.seat)}：${p.name}`).join(' · ') }}</p>
+    <p class="result-explanation">{{ result.players.map(p => `${resultSeatLabel(result!.game, p.seat)}：${p.name}`).join(' · ') }}</p>
     <div class="review-actions"><button class="review-button" :disabled="!result.plays.length" :aria-expanded="open" @click="open = !open"><AppIcon name="history" />行棋回顾</button><button class="review-button" :disabled="saving" @click="save"><AppIcon name="download" />保存战绩</button></div>
     <div v-if="open"><ol class="junqi-result-moves"><li v-for="(move, i) in boardPlays" :key="i">{{ move.name }}：{{ move.cards }}</li></ol><nav class="replay-controls"><button class="review-button" :disabled="boardPage === 0" @click="boardPage--">上一页</button><span>{{ boardPage + 1 }} / {{ Math.max(1, Math.ceil(result.plays.length / 2)) }}</span><button class="review-button" :disabled="(boardPage + 1) * 2 >= result.plays.length" @click="boardPage++">下一页</button></nav></div><p v-if="notice" role="status">{{ notice }}</p>
   </section>

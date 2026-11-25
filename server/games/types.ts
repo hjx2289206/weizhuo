@@ -5,7 +5,7 @@
 import type { Card, GameKind, GameView, GuandanDeclaration, HintPlay, Phase, TablePlay } from '../../shared/protocol';
 
 /** Client commands a game engine may own; every other command is room authority. */
-export type GameCommandType = 'bid' | 'play' | 'pass' | 'tribute' | 'returnTribute' | 'junqiSetup' | 'junqiMove' | 'junqiResign' | 'xiangqiMove' | 'xiangqiResign' | 'xiangqiDraw' | 'xiangqiUndo' | 'chessMove' | 'chessResign' | 'chessDraw' | 'chessUndo' | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneUndo';
+export type GameCommandType = 'bid' | 'play' | 'pass' | 'tribute' | 'returnTribute' | 'junqiSetup' | 'junqiMove' | 'junqiResign' | 'xiangqiMove' | 'xiangqiResign' | 'xiangqiDraw' | 'xiangqiUndo' | 'chessMove' | 'chessResign' | 'chessDraw' | 'chessUndo' | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneUndo' | 'reversiMove' | 'reversiResign' | 'reversiUndo';
 
 /** Trusted room options, separate from client payloads. */
 export interface GameCommandOptions {

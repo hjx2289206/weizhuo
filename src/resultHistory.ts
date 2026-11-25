@@ -1,8 +1,9 @@
 import type { GameKind, Snapshot } from '../shared/protocol'
-import { GAME_DEFINITIONS, isBoardGame, isGameKind, isStoneGame } from '../shared/gameCatalog'
+import { GAME_DEFINITIONS, isBlackFirstGame, isBoardGame, isGameKind } from '../shared/gameCatalog'
 import { junqiCoordinate, junqiSideName, junqiTeamName } from '../shared/junqi'
 import { chessCoordinate, chessSideName } from '../shared/chess'
 import { xiangqiCoordinate, xiangqiSideName } from '../shared/xiangqi'
+import { reversiSideName } from '../shared/reversi'
 import { scoreGame } from '../shared/doudizhu'
 import { ICON_PATHS } from './icons'
 import { bottomCardText, rankGlyph } from './screens/cardText'
@@ -30,6 +31,14 @@ export function resultFromSnapshot(snapshot: Snapshot, date = new Date().toISOSt
       title: x.draw ? '和棋' : `${x.winner === 0 ? '黑方' : '白方'}获胜`, detail: `${x.size} 路 · ${x.reason} · 共 ${x.moves.length} 手`,
       players: snapshot.seats.map(player => ({ name: player.name ?? (player.id === 0 ? '黑方' : '白方'), seat: player.id })),
       plays: x.moves.map(move => ({ seat: move.side, name: move.side === 0 ? '黑方' : '白方', cards: move.notation })) }
+  }
+  if (snapshot.game === 'reversi') {
+    const game = snapshot.reversi
+    return { key: snapshot.code + ':reversi:' + game.roundId, code: snapshot.code, game: 'reversi', date,
+      title: game.draw ? '和棋' : reversiSideName(game.winner!) + '获胜',
+      detail: '黑 ' + game.counts[0] + ' 子 · 白 ' + game.counts[1] + ' 子 · ' + game.reason + ' · 共 ' + game.moves.length + ' 手',
+      players: snapshot.seats.map(player => ({ name: player.name ?? reversiSideName(player.id), seat: player.id })),
+      plays: game.moves.map(move => ({ seat: move.side, name: reversiSideName(move.side), cards: move.notation })) }
   }
   if (snapshot.game === 'chess') {
     const x = snapshot.chess
@@ -100,6 +109,14 @@ export function readResults(storage: Pick<Storage, 'getItem'>): ResultRecord[] {
   } catch { return [] }
 }
 
+export function resultSeatLabel(game: GameKind, seat: number): string {
+  if (isBlackFirstGame(game)) return reversiSideName(seat)
+  if (game === 'chess') return chessSideName(seat)
+  if (game === 'xiangqi') return xiangqiSideName(seat)
+  if (game === 'junqi') return junqiSideName(seat)
+  return seat % 2 === 0 ? '1、3 号座' : '2、4 号座'
+}
+
 export async function exportResultImage(record: ResultRecord): Promise<void> {
   const canvas = document.createElement('canvas')
   canvas.width = 1100
@@ -159,7 +176,7 @@ export async function exportResultImage(record: ResultRecord): Promise<void> {
     ctx.fillStyle = '#657461'; ctx.font = '15px sans-serif'; ctx.fillText(`${player.seat + 1} 号座`, 153, y + 62)
     ctx.textAlign = 'right'; ctx.font = '26px Georgia, serif'
     ctx.fillStyle = (player.delta ?? 0) > 0 ? '#365e3e' : '#77695c'
-    ctx.fillText(player.delta !== undefined ? `${player.delta > 0 ? '+' : ''}${player.delta}` : isStoneGame(record.game) ? player.seat === 0 ? '黑方' : '白方' : record.game === 'chess' ? chessSideName(player.seat) : record.game === 'xiangqi' ? xiangqiSideName(player.seat) : record.game === 'junqi' ? junqiSideName(player.seat) : player.seat % 2 === 0 ? '1、3 号座' : '2、4 号座', 810, y + 49)
+    ctx.fillText(player.delta !== undefined ? `${player.delta > 0 ? '+' : ''}${player.delta}` : resultSeatLabel(record.game, player.seat), 810, y + 49)
     if (player.total !== undefined) { ctx.fillStyle = '#657461'; ctx.font = '22px sans-serif'; ctx.fillText(String(player.total), 1008, y + 49) }
     ctx.textAlign = 'left'; y += 82
   }

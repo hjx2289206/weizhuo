@@ -1,6 +1,6 @@
-export const BOARD_AI_GAMES = ['chess', 'xiangqi', 'gomoku'] as const
+export const BOARD_AI_GAMES = ['chess', 'xiangqi', 'gomoku', 'reversi'] as const
 export type BoardAiGame = typeof BOARD_AI_GAMES[number]
-export type UciBoardAiGame = Exclude<BoardAiGame, 'gomoku'>
+export type UciBoardAiGame = Exclude<BoardAiGame, 'gomoku' | 'reversi'>
 export const isBoardAiGame = (value: unknown): value is BoardAiGame => BOARD_AI_GAMES.some(game => game === value)
 
 /** Product difficulty names are relative presets, not measured human Elo ratings. */

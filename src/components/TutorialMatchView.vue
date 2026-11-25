@@ -2,14 +2,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { TeachingLevel } from '../../shared/tutorialProtocol'
 import type { GameKind } from '../../shared/protocol'
-import { GAME_DEFINITIONS } from '../../shared/gameCatalog'
+import { GAME_DEFINITIONS, isBoardGame } from '../../shared/gameCatalog'
 import { useTeachingGame } from '../tutorials/useTeachingGame'
 import TutorialAnimationStage from './TutorialAnimationStage.vue'
 import BrandMark from './BrandMark.vue'
 import AppIcon from './AppIcon.vue'
 
 const props = withDefaults(defineProps<{ game: GameKind; level?: TeachingLevel; live?: boolean; opposed?: boolean }>(), { level: 'basic' })
-const paged = computed(() => ['xiangqi','chess','go','gomoku'].includes(props.game))
+const paged = computed(() => isBoardGame(props.game) && props.game !== 'junqi')
 const courseTitle = computed(() => props.game === 'go' ? props.level === 'advanced' ? '进阶教程' : '基础教程' : '动画教程')
 const emit = defineEmits<{ close: [] }>()
 const root = ref<HTMLElement | null>(null), directory = ref(false), directoryPage = ref(0), viewportHeight=ref(innerHeight)

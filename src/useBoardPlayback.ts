@@ -19,6 +19,7 @@ export function useBoardPlayback<S extends BoardContext, B, M extends { ply: num
   options: {
     position: (snapshot: S) => Position<B, M>
     empty: B
+    durationMs?: number
     canAnimate: (board: B, move: M) => boolean
   },
 ) {
@@ -44,7 +45,7 @@ export function useBoardPlayback<S extends BoardContext, B, M extends { ply: num
     let startedAt: number | null = null
     const step = (timestamp: number) => {
       startedAt ??= timestamp
-      const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / BOARD_PLAYBACK_MS))
+      const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / (options.durationMs ?? BOARD_PLAYBACK_MS)))
       if (progress >= 1) { frame = null; playback.value = null; return }
       playback.value = { move, board: previousBoard, progress }
       frame = requestAnimationFrame(step)
