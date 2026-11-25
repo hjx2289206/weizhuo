@@ -49,8 +49,8 @@ for(const game of ['chess','xiangqi'] as const)test(`${game}: shared tablet fenc
  try{room.bindCreator(host,'create');room.command(host,'boardAi',{enabled:true,side:0,difficulty:'hard'},'ai');assert.equal(state(host).seats[0]?.isBot,true);room.command(host,'start',{},'start');await until(()=>p.requests.length===1);assert.equal(state(host).boardAi?.thinking,true)
   const payload=game==='chess'?{from:52,to:36}:{from:54,to:45};room.command(host,game==='chess'?'chessMove':'xiangqiMove',payload,'human-for-ai');assert.equal(moves(state(host)).length,0)
   room.command(host,game==='chess'?'chessResign':'xiangqiResign',{side:0},'resign-ai');assert.equal(state(host).phase,'playing')
-  room.detach(host);assert.equal(p.requests[0]!.signal?.aborted,true);p.requests[0]!.resolve(payload);await delay(30);assert.equal(moves(room.engine.view(0) as Snapshot).length,0)
-  const fresh=peer('fresh');room.bindResume(fresh,room.hostToken,'resume');await until(()=>p.requests.length===2);p.requests[1]!.resolve(payload);await until(()=>moves(state(fresh)).length===1);assert.equal(state(fresh).boardAi?.thinking,false)
+  room.detach(host);assert.equal(p.requests[0]!.signal?.aborted,true);p.requests[0]!.resolve({kind:'uci',...payload});await delay(30);assert.equal(moves(room.engine.view(0) as Snapshot).length,0)
+  const fresh=peer('fresh');room.bindResume(fresh,room.hostToken,'resume');await until(()=>p.requests.length===2);p.requests[1]!.resolve({kind:'uci',...payload});await until(()=>moves(state(fresh)).length===1);assert.equal(state(fresh).boardAi?.thinking,false)
   room.command(fresh,game==='chess'?'chessResign':'xiangqiResign',{side:1},'resign');assert.equal(state(fresh).phase,'finished');room.command(fresh,'again',{},'again');assert.equal(state(fresh).boardAi?.config?.difficulty,'hard');room.command(fresh,'boardAi',{enabled:false},'off');assert.equal(state(fresh).boardAi?.config,null);assert.ok(state(fresh).seats.every(s=>!s.isBot))
  }finally{room.dispose()}
 })
@@ -58,15 +58,15 @@ test('Phone AI is ready without a socket, cannot be impersonated or taken over, 
  const p=policy(),room=new Room('BA03','phone','chess',undefined,undefined,p.bridge),host=peer('h'),stranger=peer('s')
  try{room.bindCreator(host,'create','玩家');room.command(host,'boardAi',{enabled:true,side:1,difficulty:'easy'},'ai');assert.equal(state(host).seats[1]?.ready,true);assert.equal(state(host).seats[1]?.connected,true);room.requestSeat(stranger,1,'接替','takeover');assert.equal(stranger.requestRoom,null)
   room.command(host,'ready',{ready:true},'ready');room.command(host,'start',{},'start');room.command(host,'chessMove',{from:52,to:36},'white');await until(()=>p.requests.length===1);room.command(host,'chessMove',{from:12,to:28},'impersonate');assert.equal(moves(state(host)).length,1)
-  p.requests[0]!.resolve({from:0,to:0});await until(()=>!!state(host).boardAi?.error);assert.equal(moves(state(host)).length,1);assert.equal(state(host).boardAi?.thinking,false)
-  room.command(host,'boardAiRetry',{},'retry');await until(()=>p.requests.length===2);p.requests[1]!.resolve({from:12,to:28});await until(()=>moves(state(host)).length===2);assert.equal(state(host).boardAi?.error,null)
+  p.requests[0]!.resolve({kind:'uci',from:0,to:0});await until(()=>!!state(host).boardAi?.error);assert.equal(moves(state(host)).length,1);assert.equal(state(host).boardAi?.thinking,false)
+  room.command(host,'boardAiRetry',{},'retry');await until(()=>p.requests.length===2);p.requests[1]!.resolve({kind:'uci',from:12,to:28});await until(()=>moves(state(host)).length===2);assert.equal(state(host).boardAi?.error,null)
   room.command(host,'chessDraw',{action:'offer'},'draw');assert.ok(host.sent.some(m=>m.type==='error'&&m.id==='draw'))
  }finally{room.dispose()}
 })
 test('Finishing, restarting, and disposing a board room prevent an old computation from changing the next round',async()=>{
  const p=policy(),room=new Room('BA04','tablet','chess',undefined,undefined,p.bridge),host=peer('h')
- try{room.bindCreator(host,'create');room.command(host,'boardAi',{enabled:true,side:0,difficulty:'challenge'},'ai');room.command(host,'start',{},'start');await until(()=>p.requests.length===1);room.command(host,'chessResign',{side:1},'resign');assert.equal(p.requests[0]!.signal?.aborted,true);room.command(host,'again',{},'again');p.requests[0]!.resolve({from:52,to:36});await delay(40);assert.equal(state(host).phase,'lobby');assert.equal(moves(state(host)).length,0)
-  room.command(host,'start',{},'start2');await until(()=>p.requests.length===2);room.dispose();assert.equal(p.requests[1]!.signal?.aborted,true);p.requests[1]!.resolve({from:52,to:36});await delay(30);assert.equal(moves(room.engine.view(0) as Snapshot).length,0)
+ try{room.bindCreator(host,'create');room.command(host,'boardAi',{enabled:true,side:0,difficulty:'challenge'},'ai');room.command(host,'start',{},'start');await until(()=>p.requests.length===1);room.command(host,'chessResign',{side:1},'resign');assert.equal(p.requests[0]!.signal?.aborted,true);room.command(host,'again',{},'again');p.requests[0]!.resolve({kind:'uci',from:52,to:36});await delay(40);assert.equal(state(host).phase,'lobby');assert.equal(moves(state(host)).length,0)
+  room.command(host,'start',{},'start2');await until(()=>p.requests.length===2);room.dispose();assert.equal(p.requests[1]!.signal?.aborted,true);p.requests[1]!.resolve({kind:'uci',from:52,to:36});await delay(30);assert.equal(moves(room.engine.view(0) as Snapshot).length,0)
  }finally{room.dispose()}
 })
 test('Unavailable engines fail closed without silently adding or downgrading a computer',()=>{

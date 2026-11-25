@@ -107,6 +107,7 @@ const GOMOKU: RuleRow[] = [
   { term: '无禁手规则', detail: '普通无禁手规则，不是连珠竞赛规则。三三、四四、长连都不禁止，六连以上也赢。不设交换开局，不设让子。' },
   { term: '结束与联机', detail: '满盘仍无人连五，判和；可以认输，不能停一手。平板双人同屏直接开始；联机双方准备后房主开局，掉线暂停并可重连。结束后房主可再开一局。' },
   UNDO,
+  COMPUTER,
 ]
 const RULE_ROWS: Record<GameKind, RuleRow[]> = {
   doudizhu: DOUDIZHU,

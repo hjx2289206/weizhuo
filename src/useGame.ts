@@ -15,6 +15,7 @@ import type {
 } from '../shared/protocol';
 import { quickPhrase } from '../shared/phrases';
 import { isBoardGame, isGameKind } from '../shared/gameCatalog';
+import { isBoardAiGame, type BoardAiGame } from '../shared/boardAi';
 import type { BoardUndoClientAction } from '../shared/boardUndo';
 import {
   browserStores,
@@ -955,7 +956,7 @@ export function useGame() {
   const boardAiSetupRequested = ref(false);
   async function configureBoardAi(enabled: boolean, side: 0 | 1 = 1, difficulty: import('../shared/boardAi').BoardAiDifficulty = 'normal'): Promise<void> { error.value = ''; await request('boardAi', { enabled, side, difficulty }); }
   async function retryBoardAi(): Promise<void> { error.value = ''; await request('boardAiRetry', {}); }
-  async function createBoardPractice(game: 'chess' | 'xiangqi', name: string): Promise<void> {
+  async function createBoardPractice(game: BoardAiGame, name: string): Promise<void> {
     if (busy.value) return;
     workflowBusy = true; syncBusy();
     try {
@@ -1023,7 +1024,7 @@ export function useGame() {
   }
 
   async function quickPractice(game: GameKind, name: string, strength: 'strong' | 'easy'): Promise<void> {
-    if (isBoardGame(game)) throw new Error(game === 'chess' || game === 'xiangqi' ? '请使用棋类的人机对弈入口' : '本游戏仅支持真人对弈');
+    if (isBoardGame(game)) throw new Error(isBoardAiGame(game) ? '请使用棋类的人机对弈入口' : '本游戏仅支持真人对弈');
     if (busy.value) return;
     workflowBusy = true;
     syncBusy();

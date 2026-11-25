@@ -24,6 +24,7 @@ for(const game of ['chess','xiangqi'] as const)for(const level of BOARD_AI_DIFFI
 for(const [fen,allowed]of[['7k/P6p/8/8/8/8/8/K7 w - - 0 1','a7a8'],['7k/8/8/8/8/8/p6P/7K b - - 0 1','a2a1'],['r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1','e1g1']]){
  const engine=new ChessGame(fen);engine.start();const position=boardSearchPosition(engine.view());position.legalMoves=position.legalMoves.filter(m=>m.startsWith(allowed!));assert.ok(position.legalMoves.length)
  const move=await policy.chooseMove(position,'normal'),result=engine.command(engine.view().turn!,'chessMove',{...move});assert.ok(result.ok)
+ assert.equal(move.kind,'uci')
  if(allowed!.startsWith('a'))assert.ok(move.promotion);else assert.ok(engine.view().chess.moves.at(-1)?.castle)
 }
 // Actual room authority schedules each configured difficulty and applies the real CPU reply.
