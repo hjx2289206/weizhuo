@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { Room, type Peer, type RoomEngineSetup } from '../server/room';
-import type { GameCommandType, GameContext, GameResult, RoomGame } from '../server/games/types';
-import type { Card, DoudizhuGameFields, RoomMode, ServerMessage } from '../shared/protocol';
+import type { GameCommandType, GameContext, GameResult, RoomGame, TimeoutAction } from '../server/games/types';
+import type { Card, GameKind, GameView, Phase, RoomMode, ServerMessage } from '../shared/protocol';
 import { dealDuration } from '../shared/dealAnimation';
 import { GAME_DEFINITIONS, GAME_KINDS } from '../shared/gameCatalog';
 import { MAX_SEATS, phoneSeats } from '../shared/tableSeats';
@@ -12,13 +12,17 @@ const MIN_FIXTURE_SEATS = 3;
 const success = { ok: true } as const;
 const fail = (message: string): GameResult => ({ ok: false, message });
 
-/** Only the wire shape is borrowed from Doudizhu. The fixture has its own hand and turn rules. */
+const FIXTURE_KIND = 'seat-fixture' as GameKind;
+type BotMode = 'normal' | 'invalid' | 'empty' | 'absent';
+
 class SeatFixtureGame implements RoomGame {
-  readonly kind = 'doudizhu';
-  phase: DoudizhuGameFields['phase'] = 'lobby';
+  readonly kind = FIXTURE_KIND;
+  phase: Phase = 'lobby';
   private hands: Card[][] = [];
   private turn: number | null = null;
   readonly actions: number[] = [];
+  readonly operations: { seat: number; type: GameCommandType; payload: Record<string, unknown> }[] = [];
+  readonly botCalls: { seat: number; at: number; action: TimeoutAction | null }[] = [];
   readonly timeouts: number[] = [];
 
   constructor(public seatCount: number, private readonly context: GameContext) {}
@@ -40,9 +44,16 @@ class SeatFixtureGame implements RoomGame {
     this.context.onDeal?.(this.seatCount, 1);
   }
 
-  command(seat: number, action: GameCommandType, _payload: Record<string, unknown>): GameResult {
-    if (this.phase !== 'playing' || seat !== this.turn || action !== 'pass') return fail('此时不能操作');
+  command(seat: number, action: GameCommandType, payload: Record<string, unknown>): GameResult {
+    if (this.phase !== 'playing' || seat !== this.turn || (action !== 'pass' && action !== 'play')) return fail('此时不能操作');
+    if (action === 'play') {
+      const cards = payload.cards;
+      const hand = this.handOf(seat);
+      if (!Array.isArray(cards) || cards.length !== 1 || !hand[0] || cards[0] !== hand[0].id) return fail('没有这张牌');
+      this.hands[seat] = [];
+    }
     this.actions.push(seat);
+    this.operations.push({ seat, type: action, payload });
     if (this.actions.length === this.seatCount * 2) {
       this.phase = 'finished';
       this.turn = null;
@@ -63,17 +74,35 @@ class SeatFixtureGame implements RoomGame {
   passedAt() { return false; }
   requiresConnection() { return this.phase === 'playing'; }
   statusText() { return '测试牌桌'; }
-  view(): DoudizhuGameFields {
+  view(): GameView {
+    // A test-only kind is outside the registered protocol union. Only the common view shape is needed.
     return { game: this.kind, phase: this.phase, turn: this.turn, lastPlay: null, tablePlays: [],
-      trickStartIndex: 0, landlord: null, bid: 0, bottom: [], winner: null, multiplier: 1, scores: [] };
+      trickStartIndex: 0 } as unknown as GameView;
   }
   restart(): GameResult {
     if (this.phase !== 'finished') return fail('对局尚未结束');
     this.phase = 'lobby';
     this.turn = null;
     this.actions.length = 0;
+    this.operations.length = 0;
     this.hands = [];
     return success;
+  }
+}
+
+class AutomatedSeatFixture extends SeatFixtureGame {
+  constructor(count: number, context: GameContext, private readonly botMode: Exclude<BotMode, 'absent'>) {
+    super(count, context);
+  }
+
+  botAction(seat: number): TimeoutAction | null {
+    if (this.phase !== 'playing' || this.view().turn !== seat) return null;
+    const card = this.handOf(seat)[0];
+    const action: TimeoutAction | null = this.botMode === 'empty' ? null
+      : this.botMode === 'invalid' ? { type: 'play', payload: { cards: ['unknown'] } }
+        : card ? { type: 'play', payload: { cards: [card.id] } } : { type: 'pass', payload: {} };
+    this.botCalls.push({ seat, at: Date.now(), action });
+    return action;
   }
 }
 
@@ -84,19 +113,33 @@ function peer(id: string): TestPeer {
     send(message) { messages.push(message); }, supersede() {} };
 }
 
-function table(t: TestContext, mode: RoomMode = 'phone', initial = MAX_SEATS) {
-  const automation: number[] = [];
+function table(t: TestContext, mode: RoomMode = 'phone', initial = MAX_SEATS, botMode: BotMode = 'normal') {
+  const legacyCalls: string[] = [];
+  function unexpected(runtime: string): never {
+    legacyCalls.push(runtime);
+    throw new Error(`${runtime} must never be used by the seat fixture`);
+  }
   let engine!: SeatFixtureGame;
   const setup: RoomEngineSetup = {
     definition: { name: '测试牌桌', category: 'card', seatCount: initial, deckCount: 1,
       minSeats: MIN_FIXTURE_SEATS, maxSeats: MAX_SEATS, brief: '', roomModes: ['phone', 'tablet'] },
-    createEngine(context) { return engine = new SeatFixtureGame(initial, context); },
+    createEngine(context) {
+      engine = botMode === 'absent' ? new SeatFixtureGame(initial, context)
+        : new AutomatedSeatFixture(initial, context, botMode);
+      return engine;
+    },
   };
   const room = new Room('EIGHT', mode, setup, {
-    availability: () => ({ available: true, message: null }),
-    async chooseMove(state) { automation.push(state.selfSeat); return []; },
+    availability: () => unexpected('DouZero availability'),
+    async chooseMove() { return unexpected('DouZero inference'); },
+  }, {
+    availability: () => unexpected('DanLM availability'),
+    async chooseTurn() { return unexpected('DanLM inference'); },
   });
-  t.after(() => room.dispose());
+  t.after(() => {
+    room.dispose();
+    assert.deepEqual(legacyCalls, []);
+  });
   const host = peer('host');
   room.bindCreator(host, 'create', '房主');
 
@@ -131,7 +174,7 @@ function table(t: TestContext, mode: RoomMode = 'phone', initial = MAX_SEATS) {
     for (const player of players) ok(player, 'ready', { ready: true });
     ok(host, 'start');
   }
-  return { room, engine, host, automation, ok, refused, join, fill, start };
+  return { room, engine, host, ok, refused, join, fill, start };
 }
 
 test('Eight players rotate through a full circle, pause offline, resume and replace a high seat', t => {
@@ -274,7 +317,7 @@ test('Legacy fixed games and Junqi reject the generic seat count command', t => 
   }
 });
 
-test('The card timer falls back through timeoutAction and managed play works from seat eight', async t => {
+test('The card timer falls back through timeoutAction and managed play works from seat eight', t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 10_000 });
   const f = table(t);
   const players = f.fill();
@@ -292,10 +335,116 @@ test('The card timer falls back through timeoutAction and managed play works fro
   assert.equal(f.room.snapshotFor(f.host).seats[7]?.autoPlay, true);
   assert.equal(f.room.snapshotFor(f.host).turnSeatId, null);
   t.mock.timers.tick(600);
-  await Promise.resolve();
-  assert.deepEqual(f.automation, [7]);
+  assert.deepEqual(f.engine.botCalls.map(call => call.seat), [7]);
   assert.deepEqual(f.engine.timeouts, [7]);
   assert.equal(f.room.phase, 'finished');
+});
+
+test('Three computer seats and one managed player act through botAction after the deal and normal cadence', t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 20_000 });
+  const f = table(t);
+  const botSeats = [1, 2, 6], managedSeat = 3;
+  const players = Array.from({ length: MAX_SEATS }, (_, seat) => {
+    if (seat === 0) return f.host;
+    if (botSeats.includes(seat)) {
+      f.ok(f.host, 'addBot', { seatId: seat });
+      return null;
+    }
+    return f.join(seat);
+  });
+  f.ok(players[managedSeat]!, 'autoPlay', { enabled: true });
+  assert.deepEqual(f.room.snapshotFor(f.host).automation, { available: true, message: null });
+  f.start(players.filter((player): player is TestPeer => player !== null));
+  const start = Date.now();
+
+  for (let ply = 0; ply < MAX_SEATS * 2; ply++) {
+    const seat = ply % MAX_SEATS;
+    const player = players[seat];
+    assert.equal(f.room.snapshotFor(f.host).turn, seat);
+    if (player && seat !== managedSeat) {
+      const card = f.engine.handOf(seat)[0];
+      if (card) f.ok(player, 'play', { cards: [card.id] });
+      else f.ok(player, 'pass');
+      continue;
+    }
+    const before = f.engine.botCalls.length;
+    const delay = before === 0 ? dealDuration(MAX_SEATS, 1) : 600;
+    const scheduledAt = Date.now();
+    t.mock.timers.tick(delay - 1);
+    assert.equal(f.engine.botCalls.length, before);
+    assert.equal(f.engine.operations.length, ply);
+    t.mock.timers.tick(1);
+    assert.equal(f.engine.botCalls.length, before + 1);
+    const call = f.engine.botCalls.at(-1)!;
+    assert.equal(call.seat, seat);
+    assert.equal(call.at, scheduledAt + delay);
+    assert.ok(call.action);
+    assert.deepEqual(f.engine.operations.at(-1), { seat, ...call.action });
+  }
+  assert.equal(f.engine.botCalls[0]?.at, start + dealDuration(MAX_SEATS, 1));
+  assert.deepEqual(f.engine.botCalls.map(call => call.seat), [1, 2, 3, 6, 1, 2, 3, 6]);
+  assert.deepEqual(f.engine.timeouts, []);
+  assert.equal(f.room.phase, 'finished');
+});
+
+test('An engine without botAction refuses both automation entry points and still times out a human turn', t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 20_000 });
+  const f = table(t, 'phone', MAX_SEATS, 'absent');
+  const message = '本游戏暂不支持托管和电脑玩家';
+  assert.deepEqual(f.room.snapshotFor(f.host).automation, { available: false, message });
+  f.refused(f.host, 'autoPlay', { enabled: true }, new RegExp(`^${message}$`));
+  f.refused(f.host, 'addBot', { seatId: 1 }, new RegExp(`^${message}$`));
+  const players = f.fill();
+  f.ok(f.host, 'turnTimer', { seconds: 1 });
+  f.start(players);
+  const delay = dealDuration(MAX_SEATS, 1) + 1000;
+  t.mock.timers.tick(delay - 1);
+  assert.deepEqual(f.engine.timeouts, []);
+  assert.equal(f.room.snapshotFor(f.host).turnSeatId, 0);
+  t.mock.timers.tick(1);
+  assert.deepEqual(f.engine.timeouts, [0]);
+  assert.deepEqual(f.engine.botCalls, []);
+  assert.equal(f.room.snapshotFor(f.host).turnSeatId, 1);
+});
+
+for (const [mode, reason] of [['invalid', '没有这张牌'], ['empty', '当前座位没有可执行操作']] as const) {
+  test(`An ${mode} bot action is reported once and the managed player can resume manually`, t => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 20_000 });
+    const f = table(t, 'phone', MAX_SEATS, mode);
+    const players = f.fill();
+    f.ok(f.host, 'autoPlay', { enabled: true });
+    f.start(players);
+    t.mock.timers.tick(dealDuration(MAX_SEATS, 1));
+    const status = { available: false, message: `电脑操作无效：${reason}` };
+    assert.deepEqual(f.room.snapshotFor(f.host).automation, status);
+    assert.equal(f.engine.botCalls.length, 1);
+    assert.deepEqual(f.engine.actions, []);
+    f.ok(players[2]!, 'rename', { name: '换个昵称' });
+    t.mock.timers.tick(10_000);
+    assert.deepEqual(f.room.snapshotFor(f.host).automation, status);
+    assert.equal(f.engine.botCalls.length, 1);
+    assert.equal(f.room.snapshotFor(f.host).turn, 0);
+    f.ok(f.host, 'autoPlay', { enabled: false });
+    f.ok(f.host, 'play', { cards: [f.engine.handOf(0)[0]!.id] });
+    assert.equal(f.room.snapshotFor(f.host).turn, 1);
+  });
+}
+
+test('The unregistered game seats all eight players, finishes their turns and starts a rematch', t => {
+  assert.ok(!GAME_KINDS.includes(FIXTURE_KIND));
+  const f = table(t);
+  const players = f.fill();
+  f.start(players);
+  for (const [seat, player] of players.entries()) {
+    f.ok(player, 'play', { cards: [f.engine.handOf(seat)[0]!.id] });
+  }
+  for (const player of players) f.ok(player, 'pass');
+  assert.equal(f.room.phase, 'finished');
+  f.ok(f.host, 'again');
+  assert.equal(f.room.snapshotFor(f.host).game, FIXTURE_KIND);
+  assert.equal(f.room.seatCount, MAX_SEATS);
+  f.start(players);
+  assert.equal(f.room.snapshotFor(f.host).turn, 0);
 });
 
 test('Phone seats are equally spaced in order toward the right and face inward', () => {

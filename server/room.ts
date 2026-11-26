@@ -5,7 +5,7 @@
 // never contains a rule of a specific game, and the engine never sees a peer, socket or token.
 
 import { randomBytes } from 'node:crypto';
-import { isBlackFirstGame, isBoardGame, GAME_DEFINITIONS, type GameDefinition } from '../shared/gameCatalog';
+import { isBlackFirstGame, GAME_DEFINITIONS, type GameDefinition } from '../shared/gameCatalog';
 import { dealDuration } from '../shared/dealAnimation';
 import { isTableSeatCount, phoneSeats } from '../shared/tableSeats';
 import {
@@ -58,7 +58,7 @@ import { boardAiPolicy, type BoardAiPolicy } from './bots/boardAi';
 import { BOARD_AI_ADAPTERS, boardAiContext } from './bots/boardAiAdapters';
 import { GuandanGame } from './games/guandan';
 import { createPlayStamper } from './games/playLog';
-import type { GameCommandType, GameContext, RoomGame } from './games/types';
+import type { GameCommandType, GameContext, RoomGame, TimeoutAction } from './games/types';
 
 const MAX_REMEMBERED_ACTIONS = 256;
 const MAX_REMEMBERED_REQUESTS = 64;
@@ -339,7 +339,7 @@ export class Room {
   }
 
   /** Two local people share one authenticated tablet; neither occupies a remote seat. */
-  private get sharedChess(): boolean { return this.roomMode === 'tablet' && isBoardGame(this.engine.kind) && this.engine.kind !== 'junqi'; }
+  private get sharedChess(): boolean { return this.roomMode === 'tablet' && this.definition.category === 'board' && this.engine.kind !== 'junqi'; }
 
   get phase(): Phase {
     return this.engine.phase;
@@ -839,11 +839,12 @@ export class Room {
 
   /** Authoritative command facts for the opt-in collector; any error stays inside the collector. */
   private recordCommand(seatId: number | null, type: GameCommandType, payload: Record<string, unknown>): void {
-    if (!guandanCollector.enabled || isBoardGame(this.engine.kind)) return;
+    const kind = this.engine.kind;
+    if (!guandanCollector.enabled || (kind !== 'doudizhu' && kind !== 'guandan')) return;
     const seed: GuandanGame | null = this.engine instanceof GuandanGame ? this.engine : null;
     guandanCollector.command({
       roomCode: this.code,
-      game: this.engine.kind,
+      game: kind,
       phase: this.engine.phase,
       dealSeq: this.collectDealSeq,
       deal: seed ? seed.deal : null,
@@ -1004,7 +1005,7 @@ export class Room {
   private clearEmptySeats(peer: Peer, id: string): boolean {
     if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以清理空位');
     if (this.roomMode !== 'tablet') return this.fail(peer, id, '手机开一桌使用固定座位，不能清理空位');
-    if (this.engine.kind !== 'doudizhu' && !this.canResizeSeats) return this.fail(peer, id, `${GAME_DEFINITIONS[this.engine.kind].name}使用固定座位，不能清理空位`);
+    if (this.engine.kind !== 'doudizhu' && !this.canResizeSeats) return this.fail(peer, id, `${this.definition.name}使用固定座位，不能清理空位`);
     if (this.engine.phase !== 'lobby') return this.fail(peer, id, '只能在准备阶段清理空位');
     let end = this.positions.length;
     while (end > 0 && this.players[end - 1] === null) end -= 1;
@@ -1349,7 +1350,7 @@ export class Room {
 
   /** Host adds a robot to an empty, already-placed seat in the lobby (either game). */
   private addBot(peer: Peer, payload: Record<string, unknown>, id: string): boolean {
-    if (isBoardGame(this.engine.kind)) return this.fail(peer, id, isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈');
+    if (this.definition.category === 'board') return this.fail(peer, id, isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈');
     if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以添加机器人');
     const status = this.automationState();
     if (!status.available) return this.fail(peer, id, status.message ?? '机器人服务暂不可用');
@@ -1374,7 +1375,7 @@ export class Room {
 
   /** Host removes a robot again; humans and mid-game seats are never touched. */
   private removeBot(peer: Peer, payload: Record<string, unknown>, id: string): boolean {
-    if (isBoardGame(this.engine.kind)) return this.fail(peer, id, isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈');
+    if (this.definition.category === 'board') return this.fail(peer, id, isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈');
     if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以移除机器人');
     if (this.engine.phase !== 'lobby') return this.fail(peer, id, '只能在准备阶段移除机器人');
     const seatId = payload.seatId;
@@ -1390,7 +1391,7 @@ export class Room {
 
   /** 托管: the exact authenticated player opts their own seat into automatic play or cancels it. */
   private setAutoPlay(peer: Peer, payload: Record<string, unknown>, id: string): boolean {
-    if (isBoardGame(this.engine.kind)) return this.fail(peer, id, isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈');
+    if (this.definition.category === 'board') return this.fail(peer, id, isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈');
     const player = this.requiredPlayer(peer, id);
     if (!player) return false;
     if (typeof payload.enabled !== 'boolean') return this.fail(peer, id, '托管参数无效');
@@ -1462,7 +1463,7 @@ export class Room {
   private configureSeats(peer: Peer, payload: Record<string, unknown>, id: string): boolean {
     if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以调整座位');
     if (this.engine.kind === 'guandan') return this.fail(peer, id, '掼蛋固定四方座位，对家同队，无法自定义位置');
-    if (isBoardGame(this.engine.kind)) return this.fail(peer, id, `${GAME_DEFINITIONS[this.engine.kind].name}使用固定座位，无法自定义位置`);
+    if (this.definition.category === 'board') return this.fail(peer, id, `${this.definition.name}使用固定座位，无法自定义位置`);
     if (this.roomMode === 'phone') return this.fail(peer, id, '手机开一桌的座位是固定的，无法调整');
     if (this.engine.phase !== 'lobby') return this.fail(peer, id, '只能在准备阶段调整座位');
     const positions = payload.positions;
@@ -1799,9 +1800,16 @@ export class Room {
   /** Public automation status; the honest reason whenever this room cannot use bots. */
   private automationState(): RoomAutomation {
     if (this.automationFailure !== null) return { available: false, message: this.automationFailure };
-    if (isBoardGame(this.engine.kind)) return { available: false, message: isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈' };
-    const status = this.engine.kind === 'doudizhu' ? this.policy.availability() : this.guandanPolicy.availability();
-    return { available: status.available, message: status.message };
+    if (this.definition.category === 'board') return { available: false, message: isBoardAiGame(this.engine.kind) ? '请在棋类准备页设置人机对弈' : this.engine.kind === 'junqi' ? '军棋仅支持真人联机' : '本游戏仅支持真人对弈' };
+    const policy = this.engine.kind === 'doudizhu' ? this.policy
+      : this.engine.kind === 'guandan' ? this.guandanPolicy : null;
+    if (policy) {
+      const { available, message } = policy.availability();
+      return { available, message };
+    }
+    return this.engine.botAction
+      ? { available: true, message: null }
+      : { available: false, message: '本游戏暂不支持托管和电脑玩家' };
   }
 
   /** Drop the pending decision, aborting an in-flight inference and its guard timers. */
@@ -1839,7 +1847,7 @@ export class Room {
 
   /** The human decision that should be timed right now, or null. */
   private turnTimerTarget(): TurnTimerTarget | null {
-    if (isBoardGame(this.engine.kind)) return null;
+    if (this.definition.category === 'board') return null;
     if (this.turnLimitSeconds <= 0 || this.paused()) return null;
     const view = this.engine.view(null);
     if (view.game === 'doudizhu') {
@@ -1855,7 +1863,7 @@ export class Room {
         eligibleSignature: '',
       };
     }
-    if (view.phase === 'tribute') {
+    if (view.game === 'guandan' && view.phase === 'tribute') {
       // Guandan can owe two human picks at once. The first pending seat is timed, then the next.
       for (let seat = 0; seat < this.seatCount; seat += 1) {
         const player = this.players[seat];
@@ -1872,6 +1880,7 @@ export class Room {
       }
       return null;
     }
+    // Ordinary card turns use the public turn. expireTurn asks the engine for its own fallback.
     if (view.phase !== 'playing' || view.turn === null) return null;
     const player = this.players[view.turn];
     if (!player || this.isManaged(player) || !player.connected) return null;
@@ -1962,7 +1971,7 @@ export class Room {
     if (!player || !this.isManaged(player) || player.token !== decision.token) return false;
     if (this.paused()) return false;
     const view = this.engine.view(null);
-    if (isBoardGame(view.game)) return false;
+    if (this.definition.category === 'board') return false;
     if (view.game === 'guandan') {
       if (view.phase !== decision.phase) return false;
       if (view.phase === 'tribute') {
@@ -1978,7 +1987,6 @@ export class Room {
       if (view.trickStartIndex !== decision.trickStartIndex) return false;
       return this.engine.handOf(decision.seatId).map((card) => card.id).join(',') === decision.handSignature;
     }
-    if (view.game !== 'doudizhu') return false;
     if (view.phase !== decision.phase || view.turn !== decision.seatId) return false;
     if (view.tablePlays.length !== decision.historyLength) return false;
     if (view.trickStartIndex !== decision.trickStartIndex) return false;
@@ -1991,13 +1999,12 @@ export class Room {
     if (this.paused()) return;
     if (this.automationState().available === false) return;
     const view = this.engine.view(null);
-    if (isBoardGame(view.game)) return;
+    if (this.definition.category === 'board') return;
     if (view.game === 'guandan') {
       this.scheduleGuandanTurn(view);
       return;
     }
-    if (view.game !== 'doudizhu') return;
-    if (view.phase !== 'bidding' && view.phase !== 'playing') return;
+    if (view.phase !== 'playing' && !(view.game === 'doudizhu' && view.phase === 'bidding')) return;
     const turn = view.turn;
     if (turn === null) return;
     const player = this.players[turn];
@@ -2061,7 +2068,7 @@ export class Room {
     });
   }
 
-  /** Publish one scheduled decision and arm its visible delay; shared by both games. */
+  /** Publish one scheduled decision and arm its visible delay. */
   private armDecision(decision: PendingDecision): void {
     this.pendingDecision = decision;
     const presentation = this.dealPresentation;
@@ -2082,7 +2089,7 @@ export class Room {
       return;
     }
     const view = this.engine.view(null);
-    if (isBoardGame(view.game)) return;
+    if (this.definition.category === 'board') return;
     if (view.game === 'guandan') {
       if (view.phase !== decision.phase) {
         this.cancelAutomation();
@@ -2100,7 +2107,11 @@ export class Room {
       await this.runGuandanPlay(decision, view);
       return;
     }
-    if (view.game !== 'doudizhu' || view.phase !== decision.phase) {
+    if (view.game !== 'doudizhu') {
+      this.runEngineBot(decision.seatId);
+      return;
+    }
+    if (view.phase !== decision.phase) {
       this.cancelAutomation();
       return;
     }
@@ -2252,6 +2263,21 @@ export class Room {
   }
 
 
+  private runEngineBot(seatId: number): void {
+    let action: TimeoutAction | null | undefined;
+    try {
+      action = this.engine.botAction?.(seatId);
+    } catch (error) {
+      this.failAutomation(`电脑操作无效：${error instanceof Error ? error.message : '无法选择操作'}`);
+      return;
+    }
+    if (!action) {
+      this.failAutomation('电脑操作无效：当前座位没有可执行操作');
+      return;
+    }
+    this.applyAutomation(seatId, action.type, action.payload);
+  }
+
   /** Private authority path: an automatic action from a managed seat, never a fabricated peer. */
   private applyAutomation(seatId: number, type: GameCommandType, payload: Record<string, unknown>): void {
     const player = this.players[seatId];
@@ -2261,7 +2287,9 @@ export class Room {
     }
     const result = this.engine.command(seatId, type, payload);
     if (!result.ok) {
-      this.failAutomation(`${player.name}：${result.message}`);
+      const kind = this.engine.kind;
+      const label = kind === 'doudizhu' || kind === 'guandan' ? player.name : '电脑操作无效';
+      this.failAutomation(`${label}：${result.message}`);
       return;
     }
     this.recordCommand(seatId, type, payload);

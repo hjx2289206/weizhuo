@@ -56,8 +56,11 @@ export interface RoomGame {
   /** Read-only legal suggestions for one seat, best-first. Never mutates the deal. */
   hint(seatId: number): HintResult;
 
-  /** One legal timeout fallback for this seat, or null when the seat owes no decision. */
+  /** A legal fallback after time runs out, which may be as weak as passing whenever allowed. */
   timeoutAction(seatId: number): TimeoutAction | null;
+
+  /** Choose the actual move for a managed or computer seat, or null when it owes no action. */
+  botAction?(seatId: number): TimeoutAction | null;
 
   /** Adjudicate a board-clock flag on the currently active side. */
   flag?(seatId: number): GameResult;
