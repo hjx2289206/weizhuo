@@ -216,6 +216,7 @@ export interface RoomAutomation {
 export interface RoomSnapshotFields {
   /** Only the two open-information chess games expose computer-opponent controls. */
   boardAi?: import('./boardAi').BoardAiView;
+  boardAnalysis?: import('./boardAnalysis').BoardAnalysisView;
   /** Public chess clock, available only in games that support it. */
   boardClock?: import('./boardClock').BoardClockView;
   /** Public deal choreography only: no card faces or opponents' private ids. */
@@ -328,7 +329,7 @@ export type Snapshot = DoudizhuSnapshot | GuandanSnapshot | JunqiSnapshot | Xian
 export type ClientMessageType =
   | 'reversiMove' | 'reversiResign' | 'reversiUndo'
   | 'stoneMove' | 'stonePass' | 'stoneResign' | 'stoneScore' | 'stoneSetup' | 'stoneUndo'
-  | 'boardAi' | 'boardAiRetry'
+  | 'boardAi' | 'boardAiRetry' | 'boardAnalyze'
   | 'chessMove' | 'chessResign' | 'chessDraw' | 'chessUndo'
   | 'xiangqiMove'
   | 'xiangqiResign'
@@ -370,6 +371,7 @@ export type ClientMessageType =
 
 export type ClientPayload =
   | { action: import('./boardUndo').BoardUndoAction }
+  | { action: import('./boardAnalysis').BoardAnalyzeAction }
   | { point: number }
   | { size: number }
   | { rule: import('./stones').GomokuRule }

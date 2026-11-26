@@ -7,6 +7,7 @@ import type { Snapshot } from '../../shared/protocol'
 import type { GameController } from '../useGame'
 import { resultFromSnapshot, resultSeatLabel } from '../resultHistory'
 import AppIcon from '../components/AppIcon.vue'
+import BoardAnalysisPanel from '../components/BoardAnalysisPanel.vue'
 import BoardClockReadout from '../components/BoardClockReadout.vue'
 import BrandMark from '../components/BrandMark.vue'
 import CardTableBoard from '../components/CardTableBoard.vue'
@@ -108,6 +109,7 @@ function say(id: string): void {
         <span>{{ result.detail }}</span>
         <span v-for="player in result.players.filter(entry => entry.total !== undefined)" :key="player.seat">{{ player.name }} {{ player.total }} 分</span>
       </div>
+      <BoardAnalysisPanel v-if="room.game === 'chess' || room.game === 'xiangqi'" :game="game" spectator />
       <ul v-if="boardGame" class="spectator-seats" aria-label="对局双方">
         <li v-for="seat in room.seats" :key="seat.id" :class="{ 'is-turn': room.turn === seat.id }">
           <strong>{{ seatLabel(room, seat.id) }}</strong>

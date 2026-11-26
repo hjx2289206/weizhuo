@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { AnalysisMove } from '../../shared/boardAnalysis'
 import { xiangqiCoordinate, xiangqiName, xiangqiSideName, type XiangqiBoard, type XiangqiMove, type XiangqiPiece } from '../../shared/xiangqi'
 import { xiangqiMotionPath, xiangqiPoint } from '../../shared/xiangqiGeometry'
 import { xiangqiPathPoint, xiangqiPlaybackProgress, type XiangqiPlayback } from '../tutorials/xiangqiMotion'
 import type { BoardPlayback } from '../useBoardPlayback'
 import BoardMoveTrail, { type TrailMarker, type TrailRoute } from './BoardMoveTrail.vue'
 import XiangqiToken from './XiangqiToken.vue'
-const props = defineProps<{ board: XiangqiBoard; side: number | null; selected: number | null; targets: number[]; disabled?: boolean; last?: XiangqiMove | null; checked?: number | null; opposed?: boolean; camera?: string; live?: BoardPlayback<XiangqiBoard, XiangqiMove> | null; playback?: XiangqiPlayback | null }>()
+const props = defineProps<{ board: XiangqiBoard; side: number | null; selected: number | null; targets: number[]; recommendation?: AnalysisMove | null; disabled?: boolean; last?: XiangqiMove | null; checked?: number | null; opposed?: boolean; camera?: string; live?: BoardPlayback<XiangqiBoard, XiangqiMove> | null; playback?: XiangqiPlayback | null }>()
 const emit = defineEmits<{ select: [point: number] }>()
 const x = (point: number) => xiangqiPoint(point, props.side).x
 const y = (point: number) => xiangqiPoint(point, props.side).y
@@ -54,6 +55,13 @@ const trail = computed<{ color: string; routes: TrailRoute[]; markers: TrailMark
     title: `${xiangqiSideName(move.side)}第 ${move.ply} 步 ${xiangqiCoordinate(move.from)} 到 ${xiangqiCoordinate(move.to)}`,
   }
 })
+const recommendationRoute = computed<TrailRoute[]>(() => {
+  const move = props.recommendation
+  const piece = move && props.board[move.from]
+  if (!move || !piece) return []
+  const path = xiangqiMotionPath(piece, move.from, move.to)
+  return [{ points: path.map(point => ({ x: x(point), y: y(point) })), dashed: true }]
+})
 function label(point: number): string { const piece = props.board[point]; return `${xiangqiCoordinate(point)} ${piece ? `${xiangqiSideName(piece.side)}${xiangqiName(piece)}` : '空位'}${!props.disabled && props.targets.includes(point) ? '，可以走到这里' : ''}` }
 const marks = [19, 25, 27, 29, 31, 33, 35, 54, 56, 58, 60, 62, 64, 70]
 </script>
@@ -77,6 +85,7 @@ const marks = [19, 25, 27, 29, 31, 33, 35, 54, 56, 58, 60, 62, 64, 70]
       <circle v-if="selected === p" :cx="x(p)" :cy="y(p)" r="26" fill="none" stroke="#4e7950" stroke-width="2.5" />
       <circle v-if="targets.includes(p)" :cx="x(p)" :cy="y(p)" :r="board[p] ? 25.5 : 6" :fill="board[p] ? 'none' : '#5c8158'" :stroke="board[p] ? '#5c8158' : '#f5efdb'" stroke-width="2" />
     </g>
+    <BoardMoveTrail v-if="recommendationRoute.length" color="#793965" :routes="recommendationRoute" title="引擎推荐走法" />
     <g v-if="live && liveMoving" class="xiangqi-live-token" :data-progress="live.progress" pointer-events="none"><XiangqiToken :piece="live.move.piece" :facing-away="opposed && live.move.piece.side === 1" :x="liveMoving.x" :y="liveMoving.y" /></g>
     <g v-else-if="active && moving" class="xiangqi-moving-token" pointer-events="none"><XiangqiToken :piece="active.piece" :facing-away="opposed && active.piece.side === 1" :x="moving.x" :y="moving.y" /></g>
     <g v-if="playback?.rejected && playback.phase > .4" class="xiangqi-tutorial-denied" :transform="`translate(${x(playback.to)} ${y(playback.to)})`" pointer-events="none"><circle r="21" fill="#fff4dfec" stroke="#b75e48" stroke-width="2" /><path d="M-8-8L8 8M-8 8L8-8" stroke="#b75e48" stroke-width="3" stroke-linecap="round" /></g>

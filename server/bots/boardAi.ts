@@ -63,11 +63,30 @@ export function boardSearchPosition(view: ChessGameFields | XiangqiGameFields): 
   const legalMoves = view.xiangqi.board.flatMap((p,from)=>p?.side===view.turn?xiangqiDestinations(view.xiangqi.board,from).map(to=>`${xiangqiUciSquare(from)}${xiangqiUciSquare(to)}`):[])
   return { kind:'uci', game:'xiangqi', position:`position fen ${xiangqiFen(initial)}${history.length?` moves ${history.join(' ')}`:''}`, legalMoves }
 }
-function decodeMove(game: UciBoardAiGame, move: string): UciBoardMove {
+export function decodeMove(game: UciBoardAiGame, move: string): UciBoardMove {
   if (!(game==='chess'?/^[a-h][1-8][a-h][1-8][qrbn]?$/:/^[a-i][0-9][a-i][0-9]$/).test(move)) throw new Error('引擎返回的走法格式无效')
   const index = game==='chess'?chessIndex:xiangqiUciIndex
   return { kind:'uci',from:index(move.slice(0,2)),to:index(move.slice(2,4)),...(move[4]?{promotion:move[4] as ChessPromotion}:{}) }
 }
+export type AnalysisEngine = { available: true; key: BoardEngine; binary: string; network?: string } |
+  { available: false; message: string }
+
+export function uciEngineOptions(key: BoardEngine, network?: string, skill?: number): Record<string, string | number | boolean> {
+  const options: Record<string, string | number | boolean> = { Threads: 1, Hash: 32 }
+  if (key !== 'pikafish') {
+    if (skill !== undefined) options['Skill Level'] = skill
+    options.UCI_LimitStrength = false
+  }
+  if (key === 'fairy') { options.UCI_Variant = 'xiangqi'; options['Use NNUE'] = true }
+  if (network) options.EvalFile = network
+  return options
+}
+
+export function uciEnginePosition(key: BoardEngine, position: string): string {
+  return key === 'fairy' ? position.replace(/ moves (.+)$/, (_, moves: string) =>
+    ` moves ${moves.split(' ').map(move => fairyXiangqiMove(move, 1)).join(' ')}`) : position
+}
+
 interface VerifiedEngine { binary:string; network?:string; files:{path:string;size:number;mtime:number}[] }
 export class NativeBoardAiPolicy implements BoardAiPolicy {
   private engines = new Map<BoardEngine, VerifiedEngine>()
@@ -102,12 +121,25 @@ export class NativeBoardAiPolicy implements BoardAiPolicy {
   }
   availability(game: BoardAiGame, difficulty: BoardAiDifficulty) {
     if (game === 'gomoku' || game === 'reversi') return { available:true, message:null }
-    const key=boardEngine(game,difficulty),entry=this.engines.get(key)
+    return this.engineAvailability(boardEngine(game, difficulty))
+  }
+  private engineAvailability(key: BoardEngine) {
+    const entry = this.engines.get(key)
     if(entry) {
       try { for(const file of entry.files){const info=statSync(file.path);if(info.size!==file.size||info.mtimeMs!==file.mtime)throw new Error('changed')}return {available:true,message:null} }
       catch { this.engines.delete(key);this.errors.set(key,'棋类引擎或权重已改变，请重启服务重新校验') }
     }
     return {available:false,message:this.errors.get(key)??'棋类 AI 尚未初始化'}
+  }
+  analysisEngine(game: UciBoardAiGame): AnalysisEngine {
+    const keys: BoardEngine[] = game === 'chess' ? ['stockfish'] : ['pikafish', 'fairy']
+    for (const key of keys) {
+      if (this.engineAvailability(key).available) {
+        const { binary, network } = this.engines.get(key)!
+        return { available: true, key, binary, network }
+      }
+    }
+    return { available: false, message: this.engineAvailability(keys[0]!).message! }
   }
   private async acquire(signal?:AbortSignal) {
     if(signal?.aborted)throw new Error('思考已取消')
@@ -134,11 +166,8 @@ export class NativeBoardAiPolicy implements BoardAiPolicy {
   }
   private search(entry:VerifiedEngine,key:BoardEngine,position:UciSearchPosition,difficulty:BoardAiDifficulty,signal?:AbortSignal,probe=false) {
     const profile=boardAiProfile(position.game,difficulty)
-    const options:Record<string,string|number|boolean>={Threads:1,Hash:32}
-    if(key!=='pikafish'){options['Skill Level']=profile.skill;options.UCI_LimitStrength=false}
-    if(key==='fairy'){options.UCI_Variant='xiangqi';options['Use NNUE']=true}
-    if(entry.network)options.EvalFile=entry.network
-    const enginePosition=key==='fairy'?position.position.replace(/ moves (.+)$/,(_,moves:string)=>` moves ${moves.split(' ').map(move=>fairyXiangqiMove(move,1)).join(' ')}`):position.position
+    const options = uciEngineOptions(key, entry.network, profile.skill)
+    const enginePosition = uciEnginePosition(key, position.position)
     const legalMoves=key==='fairy'?position.legalMoves.map(move=>fairyXiangqiMove(move,1)):position.legalMoves
     return searchUci({binary:entry.binary,options,requiredOptions:key==='pikafish'?['EvalFile']:['Skill Level','UCI_LimitStrength'],position:enginePosition,
       go:`go nodes ${probe?1:profile.nodes} movetime ${probe?100:profile.movetime}${legalMoves.length?` searchmoves ${legalMoves.join(' ')}`:''}`,signal,timeoutMs:10000})

@@ -15,6 +15,7 @@ import type {
 } from '../shared/protocol';
 import { quickPhrase } from '../shared/phrases';
 import { isBoardGame, isGameKind } from '../shared/gameCatalog';
+import type { BoardAnalyzeAction } from '../shared/boardAnalysis';
 import { isBoardAiGame, type BoardAiGame } from '../shared/boardAi';
 import type { BoardClockPreset } from '../shared/boardClock';
 import type { BoardUndoClientAction } from '../shared/boardUndo';
@@ -984,6 +985,11 @@ export function useGame() {
     error.value = ''; await request('junqiMove', { from, to });
   }
   async function junqiResign(): Promise<void> { error.value = ''; await request('junqiResign', {}); }
+  async function boardAnalyze(action: BoardAnalyzeAction): Promise<void> {
+    error.value = '';
+    await request('boardAnalyze', { action });
+  }
+
   const boardAiSetupRequested = ref(false);
   async function configureBoardAi(enabled: boolean, side: 0 | 1 = 1, difficulty: import('../shared/boardAi').BoardAiDifficulty = 'normal'): Promise<void> { error.value = ''; await request('boardAi', { enabled, side, difficulty }); }
   async function retryBoardAi(): Promise<void> { error.value = ''; await request('boardAiRetry', {}); }
@@ -1377,7 +1383,7 @@ export function useGame() {
 
   return {
     spectateRoom, setSpectatorPhrases,
-    boardAiSetupRequested, configureBoardAi, retryBoardAi, createBoardPractice,
+    boardAnalyze, boardAiSetupRequested, configureBoardAi, retryBoardAi, createBoardPractice,
     junqiSetup, junqiMove, junqiResign, setJunqiMode, chessMove, chessResign, chessDraw, xiangqiMove, xiangqiResign, xiangqiDraw,
     stoneMove, stonePass, stoneResign, stoneScore, stoneSetup, reversiMove, reversiResign, boardUndo,
     state,
