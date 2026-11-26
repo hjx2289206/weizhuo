@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { AnalysisMove } from '../../shared/boardAnalysis'
 import { chessCoordinate, chessName, chessPoint, chessSideName, type ChessBoard, type ChessMove, type ChessPiece } from '../../shared/chess'
 import type { BoardPlayback } from '../useBoardPlayback'
 import BoardMoveTrail, { type TrailMarker, type TrailRoute } from './BoardMoveTrail.vue'
 import ChessToken from './ChessToken.vue'
 export interface ChessPlayback { from: number; to: number; piece: ChessPiece; phase: number; rejected?: string; move?: ChessMove }
-const props = defineProps<{ board: ChessBoard; side: number | null; selected: number | null; targets: number[]; disabled?: boolean; last?: ChessMove | null; checked?: number | null; opposed?: boolean; live?: BoardPlayback<ChessBoard, ChessMove> | null; playback?: ChessPlayback | null }>()
+const props = defineProps<{ board: ChessBoard; side: number | null; selected: number | null; targets: number[]; recommendation?: AnalysisMove | null; disabled?: boolean; last?: ChessMove | null; checked?: number | null; opposed?: boolean; live?: BoardPlayback<ChessBoard, ChessMove> | null; playback?: ChessPlayback | null }>()
 const emit = defineEmits<{ select: [point: number] }>()
 const point = (p: number) => chessPoint(p, props.opposed ? 0 : props.side)
 const x = (p: number) => point(p).x, y = (p: number) => point(p).y
@@ -73,6 +74,7 @@ function label(p: number) { const piece = props.board[p]; return `${chessCoordin
         <ChessToken v-if="board[p] && !hidden(board[p])" :piece="board[p]!" :x="x(p)" :y="y(p)" :opacity="opacity(p)" :facing-away="opposed && board[p]!.side === 1" :checked="board[p]!.rank === 'k' && board[p]!.side === checked" />
       </template>
     </g>
+    <BoardMoveTrail v-if="recommendation" color="#793965" :routes="[{ points: [point(recommendation.from), point(recommendation.to)], dashed: true }]" title="引擎推荐走法" />
     <g v-if="playback" fill="none" :stroke="playback.rejected ? '#b55f49' : '#bc913e'" stroke-width="3" pointer-events="none"><path :d="`M${x(playback.from)} ${y(playback.from)}L${x(playback.to)} ${y(playback.to)}`" stroke-dasharray="6 5" /><circle :cx="x(playback.to)" :cy="y(playback.to)" r="24" /></g>
     <g class="chess-overlays" pointer-events="none">
       <template v-for="(_, p) in board" :key="`overlay-${p}`">

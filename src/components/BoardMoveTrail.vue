@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 export interface TrailPoint { x: number; y: number }
-export interface TrailRoute { points: readonly TrailPoint[]; width?: number; opacity?: number }
+export interface TrailRoute { points: readonly TrailPoint[]; width?: number; opacity?: number; dashed?: boolean }
 export interface TrailMarker { x: number; y: number; size: number; kind: 'origin' | 'destination'; shape?: 'square' | 'circle'; muted?: boolean }
 const props = defineProps<{ color: string; routes?: readonly TrailRoute[]; markers?: readonly TrailMarker[]; title?: string }>()
 const halo = '#fff8e4'
@@ -34,8 +34,8 @@ const markers = computed(() => props.markers ?? [])
   <g class="board-move-trail" :data-trail-color="color" pointer-events="none" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <title v-if="title">{{ title }}</title>
     <g v-for="(route, index) in routes" :key="`route-${index}`" :opacity="route.opacity ?? 1">
-      <path :d="route.d" :stroke="halo" :stroke-width="(route.width ?? 3) + 4" opacity=".68" />
-      <path :d="route.d" :stroke="color" :stroke-width="route.width ?? 3" />
+      <path :d="route.d" :stroke="halo" :stroke-width="(route.width ?? 3) + 4" :stroke-dasharray="route.dashed ? '8 7' : undefined" opacity=".68" />
+      <path :d="route.d" :stroke="color" :stroke-width="route.width ?? 3" :stroke-dasharray="route.dashed ? '8 7' : undefined" />
       <g v-if="route.arrow" :transform="route.arrow">
         <path d="M-11-6L0 0L-11 6" :stroke="halo" stroke-width="8" opacity=".68" />
         <path d="M-11-6L0 0L-11 6" :stroke="color" stroke-width="3" />

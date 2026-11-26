@@ -51,6 +51,8 @@ import { ReversiGame } from './games/reversi';
 import { stoneSideName } from '../shared/stones';
 import { BOARD_AI_DIFFICULTIES, boardAiLabel, isBoardAiDifficulty, isBoardAiGame, type BoardAiConfig } from '../shared/boardAi';
 import { boardUndoTarget, type BoardUndoSide } from '../shared/boardUndo';
+import { analysisRecord, isAnalyzableView, type AnalyzableView, type AnalysisPosition, type BoardAnalysisResult } from '../shared/boardAnalysis';
+import { boardAnalysisPolicy, type BoardAnalysisPolicy } from './bots/boardAnalysis';
 import { boardAiPolicy, type BoardAiPolicy } from './bots/boardAi';
 import { BOARD_AI_ADAPTERS, boardAiContext } from './bots/boardAiAdapters';
 import { GuandanGame } from './games/guandan';
@@ -60,6 +62,17 @@ import type { GameCommandType, GameContext, RoomGame } from './games/types';
 const MAX_REMEMBERED_ACTIONS = 256;
 const MAX_REMEMBERED_REQUESTS = 64;
 const MAX_SPECTATORS = 8;
+const ANALYSIS_PROGRESS_MS = 500;
+
+interface PendingBoardAnalysis {
+  roundId: string;
+  controller: AbortController;
+  positions: AnalysisPosition[];
+  lastPublishedAt: number;
+}
+
+/** Retain the server's single slot until the policy has closed its engine session. */
+let activeBoardAnalysis: PendingBoardAnalysis | null = null;
 /** The separator is outside the alphabet of player and table credentials. */
 const SPECTATOR_PREFIX = 'spectator:';
 
@@ -282,6 +295,8 @@ export class Room {
   private boardClockTimes: [BoardClockTime, BoardClockTime] = [initialBoardClockTime('off'), initialBoardClockTime('off')];
   private boardClockRun: { side: BoardClockSide; startedAt: number } | null = null;
   private boardClockTimer: NodeJS.Timeout | null = null;
+  private pendingBoardAnalysis: PendingBoardAnalysis | null = null;
+  private boardAnalysis: BoardAnalysisResult | null = null;
 
   constructor(
     code: string,
@@ -291,6 +306,7 @@ export class Room {
     guandanBridge: GuandanPolicy = guandanPolicy,
     private readonly boardPolicy: BoardAiPolicy = boardAiPolicy,
     private readonly boardNow: () => number = () => performance.now(),
+    private readonly analysisPolicy: BoardAnalysisPolicy = boardAnalysisPolicy,
   ) {
     if (!supportsRoomMode(game, roomMode)) throw new Error(`${GAME_DEFINITIONS[game].name}不支持公共平板模式`);
     this.code = code;
@@ -682,6 +698,8 @@ export class Room {
       case 'stoneUndo':
       case 'reversiUndo':
         return this.boardUndo(peer, type, payload.action, id);
+      case 'boardAnalyze':
+        return this.analyzeBoard(peer, payload.action, id);
       case 'boardAi':
         return this.configureBoardAi(peer, payload, id);
       case 'boardAiRetry':
@@ -1149,6 +1167,82 @@ export class Room {
     return true;
   }
 
+  // ---------------------------------------------------------------- finished-board analysis
+
+  private analyzeBoard(peer: Peer, action: unknown, id: string): boolean {
+    const view = this.engine.view(null);
+    if (!isAnalyzableView(view)) return this.fail(peer, id, '当前游戏不支持复盘分析');
+    if (view.phase !== 'finished') return this.fail(peer, id, '对局结束后才能分析本局');
+    if (!this.playerFor(peer) && !(this.sharedChess && this.isHost(peer))) return this.fail(peer, id, '只有入座玩家或同屏主机可以分析');
+    const record = analysisRecord(view);
+    if (action === 'cancel') {
+      if (this.pendingBoardAnalysis?.roundId !== record.roundId) return this.fail(peer, id, '当前没有正在运行的分析');
+      this.cancelBoardAnalysis();
+      return true;
+    }
+    if (action !== 'start') return this.fail(peer, id, '分析操作无效');
+    if (this.pendingBoardAnalysis) return this.fail(peer, id, '本局正在分析');
+    if (activeBoardAnalysis) return this.fail(peer, id, '服务器正在分析其他对局，请稍后再试');
+    const availability = this.analysisPolicy.availability(view.game);
+    if (!availability.available) return this.fail(peer, id, availability.message ?? '棋类引擎不可用');
+
+    const pending: PendingBoardAnalysis = {
+      roundId: record.roundId, controller: new AbortController(), positions: [], lastPublishedAt: this.boardNow(),
+    };
+    this.pendingBoardAnalysis = activeBoardAnalysis = pending;
+    this.boardAnalysis = this.analysisState(view, 'running');
+    void this.runBoardAnalysis(pending, view);
+    return true;
+  }
+
+  private analysisState(view: AnalyzableView, status: BoardAnalysisResult['status'],
+    positions: AnalysisPosition[] = [], error: string | null = null): BoardAnalysisResult {
+    const { roundId, moves } = analysisRecord(view);
+    return { roundId, status, total: moves.length + 1, completed: positions.length, positions: [...positions], error };
+  }
+
+  private cancelBoardAnalysis(): void {
+    const pending = this.pendingBoardAnalysis;
+    this.pendingBoardAnalysis = null;
+    this.boardAnalysis = null;
+    pending?.controller.abort();
+  }
+
+  private analysisCurrent(pending: PendingBoardAnalysis): boolean {
+    if (this.pendingBoardAnalysis !== pending || pending.controller.signal.aborted) return false;
+    const view = this.engine.view(null);
+    if (view.phase === 'finished' && isAnalyzableView(view) && analysisRecord(view).roundId === pending.roundId) return true;
+    this.cancelBoardAnalysis();
+    return false;
+  }
+
+  private async runBoardAnalysis(pending: PendingBoardAnalysis, view: AnalyzableView): Promise<void> {
+    const publish = (status: BoardAnalysisResult['status'], error: string | null = null) => {
+      this.boardAnalysis = this.analysisState(view, status, pending.positions, error);
+      this.version += 1;
+      this.broadcast();
+    };
+    try {
+      // Let the command publish its acknowledgment and initial state before progress callbacks.
+      await Promise.resolve();
+      if (!this.analysisCurrent(pending)) return;
+      await this.analysisPolicy.analyze(view, pending.controller.signal, position => {
+        if (!this.analysisCurrent(pending)) return;
+        pending.positions.push(position);
+        const now = this.boardNow();
+        if (now - pending.lastPublishedAt < ANALYSIS_PROGRESS_MS) return;
+        pending.lastPublishedAt = now;
+        publish('running');
+      });
+      if (this.analysisCurrent(pending)) publish('done');
+    } catch (error) {
+      if (this.analysisCurrent(pending)) publish('failed', error instanceof Error ? error.message : '棋类引擎异常');
+    } finally {
+      if (this.pendingBoardAnalysis === pending) this.pendingBoardAnalysis = null;
+      if (activeBoardAnalysis === pending) activeBoardAnalysis = null;
+    }
+  }
+
   // ---------------------------------------------------------------- bots and 托管
 
   /** One computer opponent, configured only by the live host before a round starts. */
@@ -1462,6 +1556,7 @@ export class Room {
     this.boardAiError = null;
     this.invalidateAutomation();
     this.resetBoardClock();
+    this.cancelBoardAnalysis();
     this.seenActions.clear();
     this.seenOrder = [];
     return true;
@@ -1489,6 +1584,14 @@ export class Room {
     const self = this.playerFor(peer);
     const view = this.engine.view(self ? self.seatId : null);
     const kind = view.game;
+    let boardAnalysis: RoomSnapshotFields['boardAnalysis'];
+    if (isAnalyzableView(view)) {
+      const { roundId } = analysisRecord(view);
+      if (this.boardAnalysis && this.boardAnalysis.roundId !== roundId) this.cancelBoardAnalysis();
+      const availability = this.analysisPolicy.availability(view.game);
+      boardAnalysis = { ...(this.boardAnalysis ?? this.analysisState(view, 'idle')),
+        available: availability.available, unavailableReason: availability.message };
+    }
     const base: RoomSnapshotFields = {
       code: this.code,
       roomMode: this.roomMode,
@@ -1507,6 +1610,7 @@ export class Room {
         : Math.max(0, this.turnTimerDeadline - Date.now()),
       turnSeatId: this.turnTimerSeat,
       ...(this.engine.flag ? { boardClock: this.boardClockView() } : {}),
+      ...(boardAnalysis ? { boardAnalysis } : {}),
       seatRequests: this.isHost(peer) ? this.pendingRequests() : [],
       automation: this.automationState(),
       ...(isBoardAiGame(kind) ? { boardAi: {
@@ -2317,6 +2421,7 @@ export class Room {
   /** Stop every room-owned timer/work item: called before deletion and on process shutdown. */
   dispose(message = '房间已关闭'): void {
     this.invalidateAutomation();
+    this.cancelBoardAnalysis();
     this.clearTurnTimer();
     this.stopBoardClock(this.boardNow());
     for (const spectator of this.spectators.values()) {

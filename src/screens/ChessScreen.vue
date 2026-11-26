@@ -4,6 +4,7 @@ import type { GameController } from '../useGame'
 import { chessCoordinate, chessDestinations, chessName, chessSideName, CHESS_PROMOTIONS, CHESS_NAMES, type ChessBoard as Board, type ChessPromotion, type ChessSide } from '../../shared/chess'
 import ChessBoard from '../components/ChessBoard.vue'
 import ChessToken from '../components/ChessToken.vue'
+import BoardAnalysisPanel from '../components/BoardAnalysisPanel.vue'
 import BoardAiControl from '../components/BoardAiControl.vue'
 import BoardClockControl from '../components/BoardClockControl.vue'
 import BoardClockReadout from '../components/BoardClockReadout.vue'
@@ -101,7 +102,7 @@ async function copy(seat: number): Promise<void> { try { await navigator.clipboa
         </div>
         <div v-else-if="s.phase === 'finished'" class="chess-actions"><button v-if="s.isHost" class="button primary" :disabled="locked" @click="run(game.again)">再来一局</button><span v-else class="muted">等房主再开一局</span></div>
         <div class="chess-last" role="status"><span>{{ animating ? '正在行棋' : '上一手' }}</span><strong>{{ lastSummary }}</strong></div>
-        <div class="chess-utilities"><button v-if="!shared && !computer" class="tool-button" type="button" @click="inviteOpen = true"><AppIcon name="users" />邀请朋友</button><button class="tool-button" type="button" :disabled="!s.chess.moves.length" @click="historyPage = Math.floor((s!.chess.moves.length - 1) / 6); historyOpen = true"><AppIcon name="history" />棋谱</button><BoardAiControl :game="game" /><HostTools v-if="s.isHost" :phase="s.phase" :room-mode="s.roomMode" :seats="s.seats" :self-seat="side" :busy="locked" @remove-offline="run(game.removeOfflineSeats)" @transfer="seat => run(() => game.transferHost(seat))" @dissolve="run(game.dissolveRoom)" /></div>
+        <div class="chess-utilities"><button v-if="!shared && !computer" class="tool-button" type="button" @click="inviteOpen = true"><AppIcon name="users" />邀请朋友</button><button v-if="s.phase !== 'finished'" class="tool-button" type="button" :disabled="!s.chess.moves.length" @click="historyPage = Math.floor((s!.chess.moves.length - 1) / 6); historyOpen = true"><AppIcon name="history" />棋谱</button><BoardAnalysisPanel v-else :game="game" /><BoardAiControl :game="game" /><HostTools v-if="s.isHost" :phase="s.phase" :room-mode="s.roomMode" :seats="s.seats" :self-seat="side" :busy="locked" @remove-offline="run(game.removeOfflineSeats)" @transfer="seat => run(() => game.transferHost(seat))" @dissolve="run(game.dissolveRoom)" /></div>
         <button v-if="s.isHost && s.seatRequests.length" class="tool-button" @click="requestsOpen = true">处理入座申请（{{ s.seatRequests.length }}）</button><p class="chess-short-rule">白方先行，王不能走进攻击范围。<br />兵到底线可升变，特殊走法见教程。</p>
       </aside>
     </div>
