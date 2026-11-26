@@ -1138,12 +1138,13 @@ export function useGame() {
     await request('clearEmptySeats', {});
   }
 
-  /** Host-only: set the per-decision clock; 0 disables it. The server accepts between deals. */
+  /** 房主专用，只能在准备阶段设置棋钟档位。 */
   async function setBoardClock(preset: BoardClockPreset): Promise<void> {
     error.value = '';
     await request('boardClock', { preset });
   }
 
+  /** Host-only: set the per-decision clock; 0 disables it. The server accepts between deals. */
   async function setTurnTimer(seconds: number): Promise<void> {
     if (!Number.isSafeInteger(seconds) || seconds < 0 || seconds > 300) throw new Error('倒计时秒数无效');
     error.value = '';

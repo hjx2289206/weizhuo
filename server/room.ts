@@ -667,7 +667,7 @@ export class Room {
     if (readOnly) return;
     this.version += 1;
     if (type === 'chessMove' || type === 'xiangqiMove' || type === 'stoneMove' || type === 'reversiMove' || type === 'stonePass') {
-      this.completeBoardClockTurn(arrivedAt, type !== 'stonePass');
+      this.completeBoardClockTurn(arrivedAt);
     }
     this.refreshBoardClock(arrivedAt);
     this.refreshAutomation();
@@ -1097,13 +1097,13 @@ export class Room {
     this.boardClockTimer = null;
   }
 
-  private completeBoardClockTurn(at: number, earnsIncrement: boolean): void {
+  private completeBoardClockTurn(at: number): void {
     const side = this.boardClockRun?.side;
     if (side === undefined) return;
     const preset = BOARD_CLOCK_PRESETS[this.boardClockPreset];
     this.stopBoardClock(at);
     const time = this.boardClockTimes[side];
-    if (earnsIncrement) time.mainMs += preset.incrementMs;
+    time.mainMs += preset.incrementMs;
     if (time.periodsLeft > 0) time.periodRemainingMs = preset.periodMs;
   }
 
