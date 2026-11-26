@@ -65,6 +65,7 @@ const MAX_SPECTATORS = 8;
 const ANALYSIS_PROGRESS_MS = 500;
 
 interface PendingBoardAnalysis {
+  room: Room;
   roundId: string;
   controller: AbortController;
   positions: AnalysisPosition[];
@@ -1182,12 +1183,17 @@ export class Room {
     }
     if (action !== 'start') return this.fail(peer, id, '分析操作无效');
     if (this.pendingBoardAnalysis) return this.fail(peer, id, '本局正在分析');
-    if (activeBoardAnalysis) return this.fail(peer, id, '服务器正在分析其他对局，请稍后再试');
+    if (activeBoardAnalysis) {
+      const message = activeBoardAnalysis.room === this
+        ? '上一次分析正在停止，请稍后再试'
+        : '服务器正在分析其他对局，请稍后再试';
+      return this.fail(peer, id, message);
+    }
     const availability = this.analysisPolicy.availability(view.game);
     if (!availability.available) return this.fail(peer, id, availability.message ?? '棋类引擎不可用');
 
     const pending: PendingBoardAnalysis = {
-      roundId: record.roundId, controller: new AbortController(), positions: [], lastPublishedAt: this.boardNow(),
+      room: this, roundId: record.roundId, controller: new AbortController(), positions: [], lastPublishedAt: this.boardNow(),
     };
     this.pendingBoardAnalysis = activeBoardAnalysis = pending;
     this.boardAnalysis = this.analysisState(view, 'running');
