@@ -16,6 +16,7 @@ import HandSortControl from '../components/HandSortControl.vue'
 import GuandanExchange from '../components/GuandanExchange.vue'
 import GuandanExchangeNotice from '../components/GuandanExchangeNotice.vue'
 import SoundToggle from '../components/SoundToggle.vue'
+import SeatCountControl from '../components/SeatCountControl.vue'
 import TurnTimerControl from '../components/TurnTimerControl.vue'
 import NicknameEditor from '../components/NicknameEditor.vue'
 import HostTools from '../components/HostTools.vue'
@@ -239,6 +240,7 @@ function again(): void {
       <button v-if="isHost" class="button primary" type="button" :disabled="busy || !view.canStart.value" @click="run(props.game.start)">
         开始游戏
       </button>
+      <SeatCountControl :game="props.game" />
       <TurnTimerControl
         v-if="isHost"
         :seconds="state?.turnLimitSeconds ?? 0"

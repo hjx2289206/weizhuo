@@ -1,7 +1,7 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
 import { phonePlayLayout, type PhonePlayPosition } from './phonePlayLayout';
 
-export function usePhonePlayLayout(board: Ref<HTMLElement | null>, seats: 3 | 4) {
+export function usePhonePlayLayout(board: Ref<HTMLElement | null>, seatCount: Readonly<Ref<number>>) {
   const size = ref({ width: 640, height: 140 });
   let observer: ResizeObserver | null = null;
   watch(board, element => {
@@ -13,5 +13,5 @@ export function usePhonePlayLayout(board: Ref<HTMLElement | null>, seats: 3 | 4)
     observer.observe(element);
   }, { flush: 'post' });
   onScopeDispose(() => observer?.disconnect());
-  return (position: PhonePlayPosition, count: number) => phonePlayLayout(size.value, position, count, seats);
+  return (position: PhonePlayPosition, count: number) => phonePlayLayout(size.value, position, count, seatCount.value);
 }

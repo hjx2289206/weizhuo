@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tabletSeatLayout } from '../src/tabletSeatLayout';
+import { recommendedTabletSeats, tabletSeatLayout } from '../src/tabletSeatLayout';
 import { bottomLayout, passLayout } from '../src/tableLayout';
 
 test('complete tablet placards fit each edge at tablet and compact landscape sizes', () => {
@@ -39,6 +39,26 @@ test('large rotated pass marks avoid placards and the actual Guandan centre inst
         assert.ok(cy-halfY>=0 && cy+halfY<=size.h);
         for (const other of placards) {
           assert.ok(Math.abs(cx-other.cx)>=halfX+other.width/2-.1 || Math.abs(cy-other.cy)>=halfY+other.height/2-.1);
+        }
+      }
+    }
+  }
+});
+
+test('Recommended tablet positions fit 5 to 8 rotated placards in landscape and portrait', () => {
+  for (const size of [{w:1024,h:768}, {w:768,h:1024}]) {
+    for (const count of [5, 6, 7, 8]) {
+      const boxes = recommendedTabletSeats(count).map(seat => tabletSeatLayout(seat, size, count));
+      assert.equal(boxes.length, count);
+      for (const [index, a] of boxes.entries()) {
+        const x = a.left / 100 * size.w, y = a.top / 100 * size.h;
+        assert.ok(x - a.width / 2 >= 11.99 && x + a.width / 2 <= size.w - 11.99);
+        assert.ok(y - a.height / 2 >= 11.99 && y + a.height / 2 <= size.h - 11.99);
+        assert.ok(a.scale < tabletSeatLayout({ x: .5, y: .9 }, size).scale);
+        for (const b of boxes.slice(index + 1)) {
+          const dx = Math.abs(a.left - b.left) / 100 * size.w, dy = Math.abs(a.top - b.top) / 100 * size.h;
+          assert.ok(dx >= (a.width + b.width) / 2 || dy >= (a.height + b.height) / 2,
+            `overlap at ${count} seats on ${size.w}×${size.h}`);
         }
       }
     }

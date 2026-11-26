@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { GAME_DEFINITIONS } from '../../shared/gameCatalog'
 import type { Snapshot, Seat } from '../../shared/protocol'
 import type { DealMotion } from '../useDealAnimation'
 import { usePhonePlayLayout } from '../usePhonePlayLayout'
@@ -12,11 +13,12 @@ import RobotIcon from './RobotIcon.vue'
 const props = defineProps<{ state: Snapshot | null; deal?: DealMotion | null; selfHint?: string }>()
 const board = ref<HTMLElement | null>(null)
 const guandan = computed(() => props.state?.game === 'guandan')
-const ddzLayout = usePhonePlayLayout(board, 3), gdLayout = usePhonePlayLayout(board, 4)
 const self = computed(() => props.state?.selfSeat ?? 0)
 const seats = computed(() => props.state?.seats ?? [])
 const observing = computed(() => props.state?.role === 'spectator')
-const seatCount = computed(() => guandan.value ? 4 : 3)
+const seatCount = computed(() => props.state?.seatCountSettings?.count ??
+  GAME_DEFINITIONS[guandan.value ? 'guandan' : 'doudizhu'].seatCount)
+const layout = usePhonePlayLayout(board, seatCount)
 const lanes = computed(() => (guandan.value ? [{ offset: -1, position: 'left' as const }, { offset: 2, position: 'top' as const }, { offset: 1, position: 'right' as const }]
   : [{ offset: -1, position: 'left' as const }, { offset: 1, position: 'right' as const }]).map(lane => ({ ...lane, seat: seats.value.find(seat => seat.id === (self.value + lane.offset + seatCount.value) % seatCount.value) })))
 const mySeat = computed(() => seats.value.find(seat => seat.id === self.value))
@@ -34,7 +36,6 @@ function seatAria(seat: Seat | undefined): string {
   return bits.join(' · ')
 }
 const bottom = computed(() => props.state?.game === 'doudizhu' ? props.state.bottom : [])
-function layout(position: 'left' | 'right' | 'top' | 'self', count: number) { return (guandan.value ? gdLayout : ddzLayout)(position, count) }
 </script>
 
 <template>

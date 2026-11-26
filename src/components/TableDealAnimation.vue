@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { phoneSeats } from '../../shared/tableSeats';
 import type { Seat } from '../../shared/protocol';
 import { dealCardDelay, dealTravelDuration, DEAL_FLIGHT_MS } from '../../shared/dealAnimation';
 import type { DealMotion } from '../useDealAnimation';
@@ -9,12 +10,14 @@ const props = defineProps<{ deal: DealMotion | null; seats: Seat[]; compact?: bo
 const flights = computed(() => {
   const deal = props.deal;
   if (!deal) return [];
+  const phonePositions = !props.compact ? null : deal.seatCount === 3 ? [[.5,.9],[.9,.5],[.1,.5]]
+    : deal.seatCount === 4 ? [[.5,.9],[.9,.5],[.5,.1],[.1,.5]]
+      : phoneSeats(deal.seatCount).map(({ x, y }) => [x, y]);
   return Array.from({ length: deal.cardsPerSeat * deal.seatCount }, (_, index) => {
     const seatIndex = index % deal.seatCount;
     const seat = props.seats[seatIndex];
     const relative = ((seat?.id ?? seatIndex) - (props.selfSeat ?? 0) + deal.seatCount) % deal.seatCount;
-    const phonePositions = deal.seatCount === 4 ? [[.5,.9],[.9,.5],[.5,.1],[.1,.5]] : [[.5,.9],[.9,.5],[.1,.5]];
-    const [x,y] = props.compact ? phonePositions[relative] : [seat?.x ?? .5,seat?.y ?? .9];
+    const [x,y] = phonePositions?.[relative] ?? [seat?.x ?? .5,seat?.y ?? .9];
     const dx = x - .5, dy = y - .5;
     const scale = .72 / Math.max(Math.abs(dx), Math.abs(dy), .1);
     return {

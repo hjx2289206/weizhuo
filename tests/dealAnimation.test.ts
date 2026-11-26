@@ -10,8 +10,8 @@ function peer(id: string): Peer {
   return { id, role:'table', seatId:null, token:null, room:null, requestRoom:null, send() {}, supersede() {} };
 }
 
-test('deal clock visits all seats in order, with 51/108 flights and no landlord bottom flights', () => {
-  for (const [seats, count, total] of [[3,17,51], [4,27,108]]) {
+test('deal clock visits all seats in order, including eight-seat tables and existing games', () => {
+  for (const [seats, count, total] of [[3,17,51], [4,27,108], [8,7,56]]) {
     const slots = Array.from({ length:count }, (_, i) => Array.from({ length:seats }, (_, s) => dealCardDelay(i,s,seats))).flat();
     assert.equal(slots.length,total);
     assert.equal(slots[0],DEAL_WARMUP_MS);
