@@ -2,8 +2,8 @@
 import { Chess } from 'chess.js'
 import { computed, ref, watch } from 'vue'
 import {
-  ANALYSIS_CURVE_LIMIT, ANALYSIS_GRADES, analysisCurveValue, analysisGrade, analysisLoss, analysisRecord,
-  analysisScoreFor, isAnalyzableView, type BoardAnalyzeAction,
+  ANALYSIS_CURVE_LIMIT, ANALYSIS_GRADES, analysisCurveValue, analysisGrade, analysisLoss, analysisRecommendations,
+  analysisRecord, analysisScoreFor, isAnalyzableView, type AnalysisMove, type BoardAnalyzeAction,
 } from '../../shared/boardAnalysis'
 import { chessBoard, chessCoordinate } from '../../shared/chess'
 import { rewindXiangqiBoard, xiangqiCoordinate, xiangqiInCheck } from '../../shared/xiangqi'
@@ -73,13 +73,13 @@ const replay = computed(() => {
   return null
 })
 const byPly = computed(() => new Map(analysis.value?.positions.map(position => [position.ply, position])))
-const recommendation = computed(() => selectedPly.value === null ? null : byPly.value.get(selectedPly.value)?.bestMove)
-const recommendationText = computed(() => {
-  const move = recommendation.value
-  if (!move) return ''
+const recommendations = computed(() => room.value
+  ? analysisRecommendations(room.value.game, byPly.value, moves.value, selectedPly.value)
+  : null)
+function recommendationText(move: AnalysisMove): string {
   const coordinate = room.value?.game === 'chess' ? chessCoordinate : xiangqiCoordinate
   return `${coordinate(move.from)} → ${coordinate(move.to)}${move.promotion ? `（${{ q: '后', r: '车', b: '象', n: '马' }[move.promotion]}）` : ''}`
-})
+}
 const grades = computed(() => new Map(moves.value.flatMap(move => {
   const before = byPly.value.get(move.ply - 1), after = byPly.value.get(move.ply)
   const grade = before && after && analysisGrade(analysisLoss(before, after, move.side))
@@ -121,14 +121,15 @@ const polyline = computed(() => curve.value.map(({ x, y }) => `${x},${y}`).join(
       <div class="analysis-layout">
         <div class="analysis-board">
           <ChessBoard v-if="replay?.game === 'chess'" :board="replay.board" :side="side" :selected="null" :targets="[]"
-            :last="replay.last" :checked="replay.checked" :recommendation="recommendation" disabled />
+            :last="replay.last" :checked="replay.checked" :recommendation="recommendations?.next?.move" disabled />
           <XiangqiBoard v-else-if="replay?.game === 'xiangqi'" :board="replay.board" :side="side" :selected="null" :targets="[]"
-            :last="replay.last" :checked="replay.checked" :recommendation="recommendation" disabled />
+            :last="replay.last" :checked="replay.checked" :recommendation="recommendations?.next?.move" disabled />
           <div class="analysis-board-meta">
             <strong>{{ selectedPly === null ? '终局' : ply === 0 ? '初始局面' : `第 ${ply} 步后` }}</strong>
             <button type="button" class="review-button" :disabled="selectedPly === null" @click="selectedPly = null">回到终局</button>
           </div>
-          <p v-if="recommendationText" class="analysis-recommendation">引擎推荐 {{ recommendationText }}</p>
+          <p v-if="recommendations?.played" class="analysis-recommendation">这一步引擎推荐：{{ recommendations.played.matches ? '与引擎推荐一致' : recommendationText(recommendations.played.move) }}</p>
+          <p v-if="recommendations?.next" class="analysis-recommendation">接下来{{ recommendations.next.sideName }}推荐：{{ recommendationText(recommendations.next.move) }}</p>
         </div>
         <div class="analysis-data">
           <template v-if="curve.length">

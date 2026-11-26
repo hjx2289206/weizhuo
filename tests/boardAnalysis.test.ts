@@ -9,7 +9,7 @@ import { ChessGame } from '../server/games/chess'
 import { XiangqiGame } from '../server/games/xiangqi'
 import { Room, type Peer } from '../server/room'
 import {
-  analysisCurveValue, analysisGrade, analysisLoss, analysisScoreFor, type AnalysisPosition,
+  analysisCurveValue, analysisGrade, analysisLoss, analysisRecommendations, analysisScoreFor, type AnalysisPosition,
 } from '../shared/boardAnalysis'
 import type { GameKind, RoomMode, ServerMessage } from '../shared/protocol'
 import type { XiangqiBoard } from '../shared/xiangqi'
@@ -17,6 +17,46 @@ import type { XiangqiBoard } from '../shared/xiangqi'
 function position(ply: number, evalCp: number, turn: 0 | 1 = ply % 2 === 0 ? 0 : 1): AnalysisPosition {
   return { ply, turn, evalCp, bestMove: null }
 }
+
+test('A selected move shows the recommendation from before it and names the side to move after it', () => {
+  const e4 = { from: 52, to: 36 }, d4 = { from: 51, to: 35 }, e5 = { from: 12, to: 28 }
+  const positions = new Map<number, AnalysisPosition>([
+    [0, { ...position(0, 25, 0), bestMove: d4 }],
+    [1, { ...position(1, -10, 1), bestMove: e5 }],
+    [2, { ...position(2, 15, 0), bestMove: { from: 62, to: 45 } }],
+  ])
+  assert.deepEqual(analysisRecommendations('chess', positions, [e4, e5], 1), {
+    played: { move: d4, matches: false },
+    next: { move: e5, sideName: '黑方' },
+  })
+  assert.deepEqual(analysisRecommendations('chess', positions, [d4, e5], 1).played, { move: d4, matches: true })
+  assert.equal(analysisRecommendations('chess', positions, [e4, e5], 2).next?.sideName, '白方')
+  assert.equal(analysisRecommendations('xiangqi', positions, [e4, e5], 2).next?.sideName, '红方')
+  const promotion = { from: 8, to: 0, promotion: 'q' } as const
+  positions.set(0, { ...position(0, 25), bestMove: promotion })
+  assert.equal(analysisRecommendations('chess', positions, [promotion], 1).played?.matches, true)
+  assert.equal(analysisRecommendations('chess', positions, [{ ...promotion, promotion: 'n' }], 1).played?.matches, false)
+})
+
+test('Initial and final board selections show only the next recommendation when available', () => {
+  const first = { from: 52, to: 36 }, next = { from: 12, to: 28 }
+  const positions = new Map<number, AnalysisPosition>([
+    [0, { ...position(0, 25, 0), bestMove: first }],
+    [1, { ...position(1, -10, 1), bestMove: next }],
+  ])
+  assert.deepEqual(analysisRecommendations('chess', positions, [first], 0), {
+    played: null, next: { move: first, sideName: '白方' },
+  })
+  assert.deepEqual(analysisRecommendations('chess', positions, [first], null), {
+    played: null, next: { move: next, sideName: '黑方' },
+  })
+  positions.set(0, position(0, 25))
+  assert.deepEqual(analysisRecommendations('chess', positions, [first], 1), {
+    played: null, next: { move: next, sideName: '黑方' },
+  })
+  positions.delete(1)
+  assert.deepEqual(analysisRecommendations('chess', positions, [first], null), { played: null, next: null })
+})
 
 test('Analysis converts engine scores to the requested side and clamps the curve and mover loss separately', () => {
   assert.equal(analysisScoreFor(position(1, 75), 0), -75)
@@ -132,7 +172,7 @@ test('Only finished public board games allow analysis, and spectators cannot sta
   assert.equal(junqi.room.snapshotFor(junqi.host).boardAnalysis, undefined)
 })
 
-test('The server reserves one analysis slot without queuing and cancel discards partial results', async t => {
+test('The analysis slot stays busy until cancellation finishes and distinguishes room ownership', async t => {
   const { jobs, policy } = controlledPolicy()
   const first = table(t, policy), second = table(t, policy)
   first.finish()
@@ -146,14 +186,17 @@ test('The server reserves one analysis slot without queuing and cancel discards 
   assert.equal(first.state().completed, 1)
   first.ok('boardAnalyze', { action: 'cancel' })
   assert.equal(first.state().completed, 0)
+  first.refuse('boardAnalyze', { action: 'start' }, /^上一次分析正在停止，请稍后再试$/)
+  second.refuse('boardAnalyze', { action: 'start' }, /^服务器正在分析其他对局，请稍后再试$/)
   jobs[0]!.publish(position(1, 1))
   jobs[0]!.done.resolve()
   await flush()
   assert.equal(jobs.length, 1)
   assert.equal(first.state().status, 'idle')
-  second.ok('boardAnalyze', { action: 'start' })
+  first.ok('boardAnalyze', { action: 'start' })
   await flush()
   assert.equal(jobs.length, 2)
+  assert.equal(first.state().status, 'running')
   jobs[1]!.done.resolve()
   await flush()
 })

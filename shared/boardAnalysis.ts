@@ -1,6 +1,7 @@
-import type { ChessPromotion } from './chess'
+import { chessSideName, type ChessPromotion } from './chess'
 import type { ChessGameFields, GameView, XiangqiGameFields } from './protocol'
 import type { UciBoardAiGame } from './boardAi'
+import { xiangqiSideName } from './xiangqi'
 
 export type AnalyzableView = ChessGameFields | XiangqiGameFields
 export type AnalysisSide = 0 | 1
@@ -31,6 +32,25 @@ export function isAnalyzableView(view: GameView): view is AnalyzableView {
 
 export function analysisRecord(view: AnalyzableView) {
   return view.game === 'chess' ? view.chess : view.xiangqi
+}
+
+/** A null selection means the final board, without a selected move to compare. */
+export function analysisRecommendations(
+  game: UciBoardAiGame, positions: ReadonlyMap<number, AnalysisPosition>,
+  moves: readonly AnalysisMove[], selectedPly: number | null,
+) {
+  const ply = selectedPly ?? moves.length
+  const actual = selectedPly !== null && ply > 0 ? moves[ply - 1] : undefined
+  const before = actual ? positions.get(ply - 1)?.bestMove : null
+  const current = positions.get(ply)
+  const sideName = game === 'chess' ? chessSideName : xiangqiSideName
+  return {
+    played: actual && before ? {
+      move: before,
+      matches: actual.from === before.from && actual.to === before.to && actual.promotion === before.promotion,
+    } : null,
+    next: current?.bestMove ? { move: current.bestMove, sideName: sideName(current.turn) } : null,
+  }
 }
 
 export const ANALYSIS_GRADES = [
