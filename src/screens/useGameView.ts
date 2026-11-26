@@ -228,7 +228,8 @@ export function useGameView(game: GamePlayController): GameViewCommon {
     if (flags.bot) {
       const seat = state.value?.seats.find((entry) => entry.id === seatId)
       const tier = seat?.botTier === 'easy' ? '易' : '强'
-      const brain = kind.value === 'guandan' ? 'DanLM' : 'DouZero'
+      const brain = kind.value === 'guandan' ? 'DanLM' : kind.value === 'doudizhu' ? 'DouZero' : null
+      if (!brain) return { text: '机器人', title: '由服务器自动出牌，可申请替换该座位' }
       return {
         text: `机器人·${tier}`,
         title: `${brain} ${tier}机器人：由服务器自动出牌，可申请替换该座位`,
@@ -248,11 +249,13 @@ export function useGameView(game: GamePlayController): GameViewCommon {
   const canToggleAutoPlay = computed(() => state.value?.role === 'player' && state.value.selfSeat != null)
   const autoPlayTitle = computed(() => managed.value
     ? '取消托管，恢复手动操作'
-    : kind.value === 'guandan' ? '开启托管：由简单 AI 自动出牌、进贡和还贡' : '开启托管：由本机 DouZero 自动出牌')
+    : kind.value === 'guandan' ? '开启托管：由简单 AI 自动出牌、进贡和还贡'
+      : kind.value === 'doudizhu' ? '开启托管：由本机 DouZero 自动出牌' : '开启托管：由电脑自动出牌')
   const autoPlayStatus = computed(() => {
     if (!canToggleAutoPlay.value) return ''
     if (!automation.value.available) return automation.value.message ?? '托管服务暂不可用'
-    return managed.value ? (kind.value === 'guandan' ? '简单 AI 托管中' : 'DouZero 托管中') : ''
+    if (!managed.value) return ''
+    return kind.value === 'guandan' ? '简单 AI 托管中' : kind.value === 'doudizhu' ? 'DouZero 托管中' : '托管中'
   })
   function toggleAutoPlay(): void {
     run(() => game.setAutoPlay?.(!managed.value))
