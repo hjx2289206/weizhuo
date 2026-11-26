@@ -111,6 +111,10 @@ test('Go uses one byoyomi period at each boundary and resets unspent period time
   assert.equal(f.clock().running, 0);
   f.advance(30_000);
   assert.deepEqual(f.clock().times[0], { mainMs: 0, periodsLeft: 1, periodRemainingMs: 30_000 });
+  f.advance(7_000);
+  f.ok(f.host, 'stonePass');
+  assert.deepEqual(f.clock().times[0], { mainMs: 0, periodsLeft: 1, periodRemainingMs: 30_000 });
+  f.ok(f.host, 'stoneMove', { point: 42 });
   f.advance(30_000);
   assert.deepEqual(f.clock().times[0], { mainMs: 0, periodsLeft: 0, periodRemainingMs: 0 });
   const snap = f.snapshot();
@@ -217,24 +221,27 @@ test('A disconnected shared tablet stops both clocks and reclaims them on resume
   assert.deepEqual(f.main(), [296_000, 300_000]);
 });
 
-test('Go passes consume elapsed time without an increment and scoring pauses both clocks', t => {
+test('Go passes earn the increment and scoring pauses both clocks', t => {
   const f = table(t, 'go');
   f.configure('standard');
   f.start();
   f.advance(2_000);
   f.ok(f.host, 'stonePass');
+  assert.deepEqual(f.main(), [603_000, 600_000]);
+  assert.equal(f.clock().running, 1);
   f.advance(3_000);
   f.ok(f.host, 'stonePass');
   const snap = f.snapshot();
   assert.ok(snap.game === 'go');
   assert.equal(snap.stones.stage, 'scoring');
+  assert.deepEqual(f.main(), [603_000, 602_000]);
   assert.equal(f.clock().running, null);
   f.advance(900_000);
-  assert.deepEqual(f.main(), [598_000, 597_000]);
+  assert.deepEqual(f.main(), [603_000, 602_000]);
   f.ok(f.host, 'stoneScore', { action: 'resume', side: 0 });
   assert.equal(f.clock().running, 0);
   f.advance(4_000);
-  assert.deepEqual(f.main(), [594_000, 597_000]);
+  assert.deepEqual(f.main(), [599_000, 602_000]);
 });
 
 test('Undo stops the current clock and starts the restored side with no refund or increment', t => {
