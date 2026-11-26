@@ -19,6 +19,7 @@ import PhraseBanner from '../components/PhraseBanner.vue'
 import QuickPhraseControl from '../components/QuickPhraseControl.vue'
 import RobotIcon from '../components/RobotIcon.vue'
 import SoundToggle from '../components/SoundToggle.vue'
+import SeatCountControl from '../components/SeatCountControl.vue'
 import TurnTimerControl from '../components/TurnTimerControl.vue'
 import SeatRequestPanel from '../components/SeatRequestPanel.vue'
 import { useDealAnimation } from '../useDealAnimation'
@@ -250,6 +251,7 @@ const bidValues = [0, 1, 2, 3]
       <button v-if="isHost" class="button primary" type="button" :disabled="busy || !canStart" @click="run(props.game.start)">
         开始游戏
       </button>
+      <SeatCountControl :game="props.game" />
       <TurnTimerControl
         v-if="isHost"
         :seconds="state?.turnLimitSeconds ?? 0"

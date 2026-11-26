@@ -214,6 +214,8 @@ export interface RoomAutomation {
  * Never produced by a game engine.
  */
 export interface RoomSnapshotFields {
+  /** Present in rooms with the generic lobby seat-count control. */
+  seatCountSettings?: import('./tableSeats').SeatCountSettings;
   /** Only the two open-information chess games expose computer-opponent controls. */
   boardAi?: import('./boardAi').BoardAiView;
   boardAnalysis?: import('./boardAnalysis').BoardAnalysisView;
@@ -348,6 +350,7 @@ export type ClientMessageType =
   | 'decideSeat'
   | 'rename'
   | 'seats'
+  | 'seatCount'
   | 'ready'
   | 'start'
   | 'bid'
@@ -390,6 +393,7 @@ export type ClientPayload =
   | { requestId: string; approve: boolean } // decideSeat
   | { name: string } // rename
   | { positions: Position[] } // seats
+  | { count: number } // seatCount
   | { ready: boolean }
   | { value: 0 | 1 | 2 | 3 } // bid
   | { cards: string[]; claim?: string } // play: claim is a Guandan declaration key

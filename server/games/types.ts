@@ -42,7 +42,9 @@ export interface GameContext {
 
 export interface RoomGame {
   readonly kind: GameKind;
-  readonly seatCount: 2 | 3 | 4;
+  readonly seatCount: number;
+  /** Resize a lobby and update seatCount atomically; refusal leaves the engine unchanged. */
+  setSeatCount?(count: number): GameResult;
   readonly phase: Phase;
 
   /** Deal/start the first deal. Called only after the room's seat/readiness/connection gate passed. */

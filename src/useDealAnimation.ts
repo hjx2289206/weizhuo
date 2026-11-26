@@ -34,8 +34,13 @@ export function useDealAnimation(state: Ref<Snapshot | null>) {
       const redealt = snapshot.game === 'doudizhu' && previous.phase === 'bidding' && snapshot.phase === 'bidding'
         && snapshot.hand.length > 0 && snapshot.hand.map(c => c.id).join() !== previous.hand.map(c => c.id).join();
       if (previous.phase === 'lobby' || redealt) {
-        motion = { key: `${snapshot.code}:legacy:${++fallbackSequence}`, elapsedMs: 0,
-          seatCount: snapshot.game === 'guandan' ? 4 : 3, cardsPerSeat: snapshot.game === 'guandan' ? 27 : 17 };
+        const seatCount = snapshot.seatCountSettings?.count ?? snapshot.seats.length;
+        const cardsPerSeat = snapshot.seatCountSettings
+          ? Math.max(snapshot.hand.length, ...snapshot.seats.map(seat => seat.count))
+          : snapshot.game === 'guandan' ? 27 : snapshot.game === 'doudizhu' ? 17 : 0;
+        if (seatCount && cardsPerSeat) {
+          motion = { key: `${snapshot.code}:legacy:${++fallbackSequence}`, elapsedMs: 0, seatCount, cardsPerSeat };
+        }
       }
     }
     if (!motion || motion.key === lastKey) return;

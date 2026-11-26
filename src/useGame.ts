@@ -1037,6 +1037,11 @@ export function useGame() {
   async function xiangqiDraw(action: 'offer' | 'accept' | 'decline' | 'agree', side?: 0 | 1): Promise<void> { error.value = ''; await request('xiangqiDraw', { action, ...(side === undefined ? {} : { side }) }); }
   async function setJunqiMode(variant: 'two' | 'four'): Promise<void> { error.value = ''; await request('junqiMode', { variant }); }
 
+  async function setSeatCount(count: number): Promise<void> {
+    error.value = '';
+    await request('seatCount', { count });
+  }
+
   async function setSeats(positions: Position[]): Promise<void> {
     if (!Array.isArray(positions)) throw new Error('座位位置无效');
     error.value = '';
@@ -1415,6 +1420,7 @@ export function useGame() {
     resumeLastRoom,
     leaveRoom,
     setSeats,
+    setSeatCount,
     addBot,
     fillBots,
     quickPractice,

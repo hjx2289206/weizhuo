@@ -1,12 +1,14 @@
-import { orientationForSeat } from './tableLayout'
+import { orientationForSeat, phoneSeats } from '../shared/tableSeats'
+
+export const recommendedTabletSeats = phoneSeats
 
 export const TABLET_SEAT_WIDTH = 168
 export const TABLET_SEAT_HEIGHT = 112
 
 /** Rotate the complete placard, then clamp its actual footprint inside the felt. */
-export function tabletSeatLayout(position: { x: number; y: number }, size: { w: number; h: number }) {
+export function tabletSeatLayout(position: { x: number; y: number }, size: { w: number; h: number }, seatCount = 4) {
   const w = Math.max(1, size.w), h = Math.max(1, size.h)
-  const scale = Math.max(.72, Math.min(1, w / 900, h / 560))
+  const scale = Math.max(.72, Math.min(1, w / 900, h / 560)) * (1 - .07 * Math.max(0, seatCount - 4))
   const angle = orientationForSeat(position)
   const rad = angle * Math.PI / 180
   const width = scale * (Math.abs(Math.cos(rad)) * TABLET_SEAT_WIDTH + Math.abs(Math.sin(rad)) * TABLET_SEAT_HEIGHT)

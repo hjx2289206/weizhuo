@@ -5,8 +5,9 @@
 // never contains a rule of a specific game, and the engine never sees a peer, socket or token.
 
 import { randomBytes } from 'node:crypto';
-import { supportsRoomMode, isBlackFirstGame, isBoardGame, GAME_DEFINITIONS } from '../shared/gameCatalog';
+import { isBlackFirstGame, isBoardGame, GAME_DEFINITIONS, type GameDefinition } from '../shared/gameCatalog';
 import { dealDuration } from '../shared/dealAnimation';
+import { isTableSeatCount, phoneSeats } from '../shared/tableSeats';
 import {
   BOARD_CLOCK_PRESETS, boardClockBudget, boardClockOptions, initialBoardClockTime, spendBoardClock,
   type BoardClockPreset, type BoardClockSide, type BoardClockTime, type BoardClockView,
@@ -107,7 +108,7 @@ const TWO_SEATS: readonly Position[] = [{ x: .5, y: .88, angle: 0 }, { x: .5, y:
  * (bottom 0deg, left 90deg, top 180deg, right -90deg): Doudizhu bottom/left/right,
  * Guandan bottom/right/top/left so that next=right and partner=opposite.
  */
-const PHONE_SEATS: Record<GameKind, readonly Position[]> = {
+const PHONE_SEATS: Partial<Record<GameKind, readonly Position[]>> = {
   chess: TWO_SEATS,
   go: TWO_SEATS,
   gomoku: TWO_SEATS,
@@ -127,8 +128,13 @@ const PHONE_SEATS: Record<GameKind, readonly Position[]> = {
   ],
 };
 
-/** Chinese seat words so the start refusal reads naturally for three and four seats. */
-const SEAT_WORDS: Record<2 | 3 | 4, string> = { 2: '两', 3: '三', 4: '四' };
+const SEAT_WORDS: Record<number, string> = { 2: '两', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八' };
+
+/** In-process engine construction for tests; the socket create path only passes a GameKind. */
+export interface RoomEngineSetup {
+  definition: GameDefinition;
+  createEngine(context: GameContext): RoomGame;
+}
 
 /** Transport-agnostic connection handle owned by the socket layer. */
 export interface Peer {
@@ -245,10 +251,11 @@ export class Room {
   readonly roomMode: RoomMode;
   /** Room age only: expiry is driven by continuous empty time, never by this. */
   readonly createdAt = Date.now();
-  /** Seats in this room, taken from the engine (3 for Doudizhu, 4 for Guandan). */
-  get seatCount(): 2 | 3 | 4 { return this.engine.seatCount; }
+  /** Current seats in this room, taken from the engine. */
+  get seatCount(): number { return this.engine.seatCount; }
   /** The game engine for this room: gameplay, never identity. */
   readonly engine: RoomGame;
+  private readonly definition: GameDefinition;
   version = 0;
   /** Index === seat id. Guandan and phone rooms always use canonical positions. */
   positions: Position[] = [];
@@ -260,7 +267,7 @@ export class Room {
   private seenActions = new Map<string, true>();
   private seenOrder: string[] = [];
   /** Last accepted quick phrase per seat, used only as a local anti-spam guard. */
-  private readonly lastPhraseAt = [0, 0, 0, 0];
+  private readonly lastPhraseAt: number[] = [];
   private readonly spectators = new Map<string, Spectator>();
   private spectatorPhrases = true;
   /** Socket-layer hook: after a successful dissolution the global registry drops this room. */
@@ -302,14 +309,18 @@ export class Room {
   constructor(
     code: string,
     roomMode: RoomMode,
-    game: GameKind,
+    game: GameKind | RoomEngineSetup,
     policy: DouZeroPolicy = douZeroPolicy,
     guandanBridge: GuandanPolicy = guandanPolicy,
     private readonly boardPolicy: BoardAiPolicy = boardAiPolicy,
     private readonly boardNow: () => number = () => performance.now(),
     private readonly analysisPolicy: BoardAnalysisPolicy = boardAnalysisPolicy,
   ) {
-    if (!supportsRoomMode(game, roomMode)) throw new Error(`${GAME_DEFINITIONS[game].name}不支持公共平板模式`);
+    this.definition = typeof game === 'string' ? GAME_DEFINITIONS[game] : game.definition;
+    const { name, roomModes, minSeats, maxSeats, seatCount } = this.definition;
+    if (!roomModes.includes(roomMode)) throw new Error(`${name}不支持公共平板模式`);
+    if (!isTableSeatCount(minSeats) || !isTableSeatCount(maxSeats) || !isTableSeatCount(seatCount) ||
+        seatCount < minSeats || seatCount > maxSeats) throw new Error(`${name}的座位配置无效`);
     this.code = code;
     this.roomMode = roomMode;
     this.emptySince = Date.now();
@@ -319,9 +330,12 @@ export class Room {
     context.onDeal = (seatCount, cardsPerSeat) => {
       this.dealPresentation = { id: ++this.dealSequence, startedAt: Date.now(), seatCount, cardsPerSeat };
     };
-    this.engine = ENGINE_FACTORIES[game](context);
+    this.engine = typeof game === 'string' ? ENGINE_FACTORIES[game](context) : game.createEngine(context);
+    if (this.seatCount !== seatCount) throw new Error(`${name}的引擎座位数与目录不一致`);
     this.players = Array.from({ length: this.seatCount }, () => null);
-    if (roomMode === 'phone' || game !== 'doudizhu') this.positions = PHONE_SEATS[game].map((seat) => ({ ...seat }));
+    const fixed = typeof game === 'string' ? PHONE_SEATS[game] : undefined;
+    if (roomMode === 'phone') this.positions = fixed ? fixed.map(seat => ({ ...seat })) : phoneSeats(this.seatCount);
+    else if (fixed && game !== 'doudizhu') this.positions = fixed.map(seat => ({ ...seat }));
   }
 
   /** Two local people share one authenticated tablet; neither occupies a remote seat. */
@@ -720,6 +734,8 @@ export class Room {
       }
       case 'seats':
         return this.configureSeats(peer, payload, id);
+      case 'seatCount':
+        return this.configureSeatCount(peer, payload.count, id);
       case 'ready':
         return this.setReady(peer, payload, id);
       case 'rename':
@@ -982,13 +998,13 @@ export class Room {
   }
 
   /**
-   * Tablet Doudizhu only: the host placed custom seats and wants to trim the empty positions at
-   * the end. Occupied indexes never move, so no player's seat id changes under their feet.
+   * Trim trailing empty tablet placements for manually seated rooms. Occupied indexes never
+   * move, so no player's seat id changes.
    */
   private clearEmptySeats(peer: Peer, id: string): boolean {
     if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以清理空位');
     if (this.roomMode !== 'tablet') return this.fail(peer, id, '手机开一桌使用固定座位，不能清理空位');
-    if (this.engine.kind !== 'doudizhu') return this.fail(peer, id, `${GAME_DEFINITIONS[this.engine.kind].name}使用固定座位，不能清理空位`);
+    if (this.engine.kind !== 'doudizhu' && !this.canResizeSeats) return this.fail(peer, id, `${GAME_DEFINITIONS[this.engine.kind].name}使用固定座位，不能清理空位`);
     if (this.engine.phase !== 'lobby') return this.fail(peer, id, '只能在准备阶段清理空位');
     let end = this.positions.length;
     while (end > 0 && this.players[end - 1] === null) end -= 1;
@@ -1412,6 +1428,37 @@ export class Room {
     };
   }
 
+  private get canResizeSeats(): boolean {
+    return this.definition.minSeats < this.definition.maxSeats && !!this.engine.setSeatCount;
+  }
+
+  private configureSeatCount(peer: Peer, count: unknown, id: string): boolean {
+    if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以更改人数');
+    if (this.phase !== 'lobby') return this.fail(peer, id, '只能在准备阶段更改人数');
+    if (!this.canResizeSeats || !this.engine.setSeatCount) return this.fail(peer, id, '当前游戏不支持自定义人数');
+    const { minSeats, maxSeats } = this.definition;
+    if (!isTableSeatCount(count) || count < minSeats || count > maxSeats) {
+      return this.fail(peer, id, `人数必须为 ${minSeats} 至 ${maxSeats} 的整数`);
+    }
+    const previous = this.seatCount;
+    if (count === previous) return true;
+    const occupied = this.players.slice(count).filter((player): player is Player => player !== null);
+    if (occupied.length) {
+      const seats = occupied.map(player => `${player.seatId + 1} 号座`).join('、');
+      return this.fail(peer, id, `请先让 ${seats} 的玩家离座`);
+    }
+    const result = this.engine.setSeatCount(count);
+    if (!result.ok) return this.fail(peer, id, result.message);
+
+    for (let seat = count; seat < previous; seat++) this.cancelPendingSeat(seat, '人数已调整，座位已取消');
+    this.players = Array.from({ length: count }, (_, seat) => this.players[seat] ?? null);
+    if (this.lastPhraseAt.length > count) this.lastPhraseAt.length = count;
+    for (const player of this.players) if (player) player.ready = this.isManaged(player);
+    this.positions = this.roomMode === 'phone' ? phoneSeats(count) : this.positions.slice(0, count);
+    this.invalidateAutomation();
+    return true;
+  }
+
   private configureSeats(peer: Peer, payload: Record<string, unknown>, id: string): boolean {
     if (!this.isHost(peer)) return this.fail(peer, id, '只有房主可以调整座位');
     if (this.engine.kind === 'guandan') return this.fail(peer, id, '掼蛋固定四方座位，对家同队，无法自定义位置');
@@ -1545,7 +1592,7 @@ export class Room {
     this.positions = (size === 4 ? [
       { x: .5, y: .88, angle: 0 }, { x: .12, y: .5, angle: 90 },
       { x: .5, y: .12, angle: 180 }, { x: .88, y: .5, angle: -90 },
-    ] : PHONE_SEATS.junqi).map(p => ({ ...p }));
+    ] : TWO_SEATS).map(p => ({ ...p }));
     return true;
   }
 
@@ -1601,6 +1648,9 @@ export class Room {
     const base: RoomSnapshotFields = {
       code: this.code,
       roomMode: this.roomMode,
+      ...(this.canResizeSeats ? { seatCountSettings: {
+        count: this.seatCount, min: this.definition.minSeats, max: this.definition.maxSeats,
+      } } : {}),
       seats: this.seatList(),
       hand: self ? this.engine.handOf(self.seatId).slice() : [],
       selfSeat: self ? self.seatId : null,

@@ -1,3 +1,4 @@
+import { orientationForSeat } from '../shared/tableSeats'
 // Pure geometry for the physical tabletop felt. No DOM access: every value is
 // derived from the stage size the caller measured, so the layout is deterministic
 // and can be proved without a browser.
@@ -62,10 +63,7 @@ function normalizeAngle(deg: number): number {
   return wrapped > 180 ? wrapped - 360 : wrapped
 }
 
-/** Physical orientation of a seat for tablet-top cards: bottom 0, left 90, top 180, right -90. */
-export function orientationForSeat(position: { x: number; y: number }): number {
-  return normalizeAngle(Math.atan2(0.5 - position.y, 0.5 - position.x) * DEG_PER_RAD + 90)
-}
+export { orientationForSeat } from '../shared/tableSeats'
 
 /** Public play card width: ~148px at 1280x800, ~142px at 1024x768, never a postage stamp. */
 function playCardWidth(size: Size): number {

@@ -15,10 +15,11 @@ import PassMark from '../components/PassMark.vue'
 import HostTools from '../components/HostTools.vue'
 import PhraseBanner from '../components/PhraseBanner.vue'
 import TabletSeat from '../components/TabletSeat.vue'
-import { tabletSeatLayout } from '../tabletSeatLayout'
+import { recommendedTabletSeats, tabletSeatLayout } from '../tabletSeatLayout'
 import PlayingCard from '../components/PlayingCard.vue'
 import RobotIcon from '../components/RobotIcon.vue'
 import SoundToggle from '../components/SoundToggle.vue'
+import SeatCountControl from '../components/SeatCountControl.vue'
 import SeatRequestPanel from '../components/SeatRequestPanel.vue'
 import TurnTimerControl from '../components/TurnTimerControl.vue'
 import TableDealAnimation from '../components/TableDealAnimation.vue'
@@ -34,7 +35,7 @@ import {
 } from '../tableLayout'
 import { fullscreenElement, releaseDocumentFullscreen, requestDocumentFullscreen } from '../usePhoneScreen'
 import { suitGlyph } from './cardText'
-import { expectedSeatCount, useGameView } from './useGameView'
+import { useGameView } from './useGameView'
 import { useDoudizhuView } from './useDoudizhuView'
 import { useGuandanView } from './useGuandanView'
 
@@ -66,8 +67,8 @@ const easyBotTitle = computed(() =>
     ? 'DanZero 轻量 ONNX 网络（同仓库的易档模型）'
     : 'DouZero：按模型估值加权从最优 5 个走法里抽取，会犯一些合理错误',
 )
-/** Seats this table must place and start, from the shared catalog (never seats.length). */
-const expectedSeats = computed(() => expectedSeatCount(game.value))
+const expectedSeats = common.seatCount
+const seatSuggestions = computed(() => expectedSeats.value > 4 ? recommendedTabletSeats(expectedSeats.value) : [])
 
 /* ---------------------------------------------------------------- seats */
 /** Authoritative placements broadcast by the server. */
@@ -104,7 +105,7 @@ const isHost = computed(() => state.value?.isHost === true)
 const pendingRequests = computed(() => state.value?.seatRequests ?? [])
 const anyClaimed = computed(() => seats.value.some((seat) => seat.name !== null))
 const canConfigure = computed(() => !props.readOnly && !isGuandan.value && isLobby.value && draft.value.length < expectedSeats.value)
-/** Tablet Doudizhu seats are host-placed: trimming trailing empty positions is safe and useful. */
+/** Trimming trailing empty positions preserves the identifiers of occupied seats. */
 const canClearEmpty = computed(() => {
   if (isGuandan.value || !isLobby.value) return false
   const placed = state.value?.seats ?? []
@@ -196,10 +197,14 @@ function reconcileDraft(): void {
       const local = draft.value[index]
       return local !== undefined && local.x === position.x && local.y === position.y && local.angle === position.angle
     })
-  if (!pendingAppend) draft.value = authoritative
+  if (!pendingAppend || (state.value?.seatCountSettings && !seatSyncInFlight)) draft.value = authoritative
 }
 
 watch(authoritativeSeats, reconcileDraft)
+watch(expectedSeats, () => {
+  draft.value = authoritativeSeats.value
+  seatSyncKey = JSON.stringify(draft.value)
+})
 
 // A draft belongs to one room: a new room code must not inherit old seats.
 watch(roomCode, () => {
@@ -262,13 +267,17 @@ function onStageClick(event: MouseEvent): void {
   else y = 0.9
   x = clamp(x, 0.1, 0.9)
   y = clamp(y, 0.1, 0.9)
-  if (draft.value.length >= expectedSeats.value) return
-  draft.value = [...draft.value, { x, y, angle: orientationForSeat({ x, y }) }]
+  placeSeat({ x, y, angle: orientationForSeat({ x, y }) })
+}
+
+function placeSeat(position: Position): void {
+  if (!canConfigure.value) return
+  draft.value = [...draft.value, position]
   void syncSeats()
 }
 
-function seatStyle(seat: Seat): Record<string, string> {
-  const layout = tabletSeatLayout(seat, stageSize.value)
+function seatStyle(seat: Position): Record<string, string> {
+  const layout = tabletSeatLayout(seat, stageSize.value, expectedSeats.value)
   return { left: `${layout.left}%`, top: `${layout.top}%`,
     '--seat-angle': `${layout.angle}deg`, '--seat-scale': String(layout.scale) }
 }
@@ -427,7 +436,7 @@ const throwBoxes = computed<StageBox[]>(() =>
 
 function passStyle(seat: Seat): Record<string, string> {
   const placards = seats.value.map(entry => {
-    const box = tabletSeatLayout(entry, stageSize.value)
+    const box = tabletSeatLayout(entry, stageSize.value, expectedSeats.value)
     return { cx: box.left / 100 * stageSize.value.w, cy: box.top / 100 * stageSize.value.h,
       width: box.width, height: box.height, angle: 0 }
   })
@@ -762,6 +771,12 @@ const dockText = computed(() => {
       <div class="table-ring"></div>
       <TableDealAnimation :deal="dealMotion" :seats="seats" />
       <div v-if="canConfigure" class="edge-guide"></div>
+      <template v-if="canConfigure && isHost">
+        <button v-for="(position, index) in seatSuggestions" v-show="index >= draft.length" :key="index"
+          class="tablet-seat-suggestion" type="button" :style="seatStyle(position)"
+          :aria-label="`在推荐位置放置 ${index + 1} 号座`" :disabled="index !== draft.length"
+          @click.stop="placeSeat(position)">{{ index + 1 }}</button>
+      </template>
 
       <div class="table-center">
         <span
@@ -846,6 +861,7 @@ const dockText = computed(() => {
       <GuandanExchange v-if="isGuandan" :game="props.game" :view="gu" />
       <!-- Host-only lobby seating for robots; humans keep their invite and approval flow. -->
       <div v-if="isHost && isLobby" class="automation-bar">
+        <SeatCountControl :game="props.game" />
         <div class="turn-timer-row">
           <TurnTimerControl
             :seconds="state?.turnLimitSeconds ?? 0"
@@ -965,6 +981,7 @@ const dockText = computed(() => {
         <p v-else class="muted">{{ dockTitle }} · {{ dockText }}</p>
 
         <template v-if="isLobby">
+          <SeatCountControl :game="props.game" />
           <div class="score-list">
             <div v-for="seat in seats" :key="seat.id" class="score-row">
               <span>{{ seat.id + 1 }} 号座 · {{ seat.name ?? '待加入' }} · {{ seat.ready ? '已准备' : '未准备' }}</span>
@@ -1039,4 +1056,9 @@ const dockText = computed(() => {
 .table-screen.is-read-only { flex: 1; height: auto; min-height: 0; padding: 0; background: transparent; }
 .is-read-only .table-stage { min-height: min(390px, 60dvh); }
 .is-read-only .table-center { width: max-content; max-width: calc(100% - 20px); }
+</style>
+
+<style scoped>
+.tablet-seat-suggestion { position: absolute; z-index: 4; transform: translate(-50%, -50%); width: 34px; height: 34px; padding: 0; border: 1px dashed #c8cba8; border-radius: 50%; background: #244839; color: #fff4d7; }
+.tablet-seat-suggestion:disabled { pointer-events: none; opacity: .5; }
 </style>

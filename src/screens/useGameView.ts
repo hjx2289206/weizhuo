@@ -16,7 +16,7 @@ export interface GameViewCommon {
   phase: ComputedRef<Phase>
   phaseText: ComputedRef<string>
   seats: ComputedRef<Seat[]>
-  /** Seats this game actually needs, from the shared catalog (never seats.length). */
+  /** Seats this game actually needs, from the room setting or shared catalog, independent of placed seats. */
   seatCount: ComputedRef<number>
   allConnected: ComputedRef<boolean>
   readyCount: ComputedRef<number>
@@ -103,7 +103,7 @@ export function useGameView(game: GamePlayController): GameViewCommon {
   const kind = computed<GameKind | null>(() => state.value?.game ?? null)
   const phase = computed<Phase>(() => state.value?.phase ?? 'lobby')
   const seats = computed<Seat[]>(() => state.value?.seats ?? [])
-  const seatCount = computed(() => expectedSeatCount(kind.value))
+  const seatCount = computed(() => state.value?.seatCountSettings?.count ?? expectedSeatCount(kind.value))
   /**
    * A managed seat (robot, or a human who opted into 托管) keeps the round moving without a live
    * socket, so it must never read as "offline" for enabling manual play or starting the game.
